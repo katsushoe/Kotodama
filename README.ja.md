@@ -10,7 +10,7 @@ Kotodamaは、AIエージェントが利用する知識をローカルのSQLite�
 
 MCPクライアントはEntityとRelationTypeの作成、Claimの提案・撤回、Eventの記録、Entity・RelationType・時点を条件とした知識検索を行えます。
 
-## インストールしてMCP設定するとAIが便利になること
+## KotodamaでAIができること
 
 KotodamaをインストールしてMCPサーバーとして登録すると、MCP対応AIはKotodamaのToolを使って次のことができます。
 
