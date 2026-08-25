@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="src/Kotodama/Kotodama.csproj" />
+  <Project Path="tests/Kotodama.Tests/Kotodama.Tests.csproj" />
+</Solution>
