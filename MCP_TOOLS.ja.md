@@ -2,6 +2,18 @@
 
 Kotodamaはstdio Transportで13個のToolを提供します。プロパティ名はJSONではcamelCaseを使用します。
 
+## Server InstructionsとPrompt
+
+MCP初期化時に、Kotodamaを永続的な構造化知識として利用するためのServer Instructionsを返します。対応クライアントはこの指針をAIのコンテキストへ追加できます。指針には、回答前の検索、再利用可能な事実だけの登録、Entityの重複確認、競合Claimの保持、Source・確信度・時点の記録、機密情報の登録前確認が含まれます。
+
+`prompts/list`と`prompts/get`により、次のMCP Promptも提供します。
+
+| Prompt | 用途 |
+|---|---|
+| `use_kotodama` | 会話中の知識検索と、安全なClaim登録の手順をAIへ渡す |
+
+Promptは利用者またはクライアントが選択して使用します。Server InstructionsとPromptの採用方法はMCPクライアントに依存し、Kotodamaへ接続しただけで会話が自動保存されることを保証しません。
+
 | Tool | 主な入力 | 出力・状態変化 |
 |---|---|---|
 | `get_version` | なし | `{name, version}`。副作用なし |

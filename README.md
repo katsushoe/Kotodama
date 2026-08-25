@@ -25,6 +25,8 @@ After Kotodama is installed and registered as an MCP server, an MCP-capable AI c
 
 For example, an AI can remember that a person belonged to an organization during a particular period, preserve both an official announcement and a conflicting report, and later answer with the applicable time and evidence. Kotodama provides storage and retrieval tools; the AI or MCP client must call those tools, and Kotodama does not automatically import conversations or update knowledge from the Internet.
 
+Kotodama supplies server instructions during MCP initialization and exposes the `use_kotodama` MCP prompt. These give compatible clients a ready-made workflow for searching retained knowledge and registering reusable facts safely. Whether instructions or prompts are applied automatically depends on the MCP client; connecting Kotodama alone does not guarantee automatic conversation storage.
+
 ## Data model
 
 ```text

@@ -2,6 +2,7 @@ using Kotodama;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using ModelContextProtocol.Server;
 
 try
 {
@@ -12,7 +13,8 @@ try
     var tempStore = Enum.TryParse<DreamTempStore>(tempStoreText, true, out var parsedTempStore) ? parsedTempStore : DreamTempStore.Default;
     builder.Services.AddSingleton(TimeProvider.System);
     builder.Services.AddSingleton(provider => new KnowledgeStore(databasePath, provider.GetRequiredService<TimeProvider>(), tempStore));
-    builder.Services.AddMcpServer().WithStdioServerTransport().WithTools<KotodamaTools>();
+    builder.Services.Configure<McpServerOptions>(options => options.ServerInstructions = KotodamaGuidance.ServerInstructions);
+    builder.Services.AddMcpServer().WithStdioServerTransport().WithTools<KotodamaTools>().WithPrompts<KotodamaPrompts>();
     using var host = builder.Build();
     await host.Services.GetRequiredService<KnowledgeStore>().InitializeAsync();
     await host.RunAsync();
