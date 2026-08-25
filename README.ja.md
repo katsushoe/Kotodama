@@ -2,6 +2,35 @@
 
 Kotodamaは、AIエージェント向けの時間・認識主体・重みを扱えるSQLite Knowledge Graph MCPサーバーです。
 
+## Kotodamaの概要
+
+Kotodamaは、AIエージェントが利用する知識をローカルのSQLiteへ永続化し、MCP stdio経由で登録・検索するサーバーです。Entity間の関係だけでなく、その関係を誰がどのSourceに基づいて主張したか、確信度、有効期間、観測日時、最終確認日時、鮮度も保持します。
+
+同じ関係について肯定と否定、複数のSource、異なる確信度を上書きせず共存させます。検索結果が空であることは「未知」を意味し、「偽」とは断定しません。定期処理`dream`は現在性を保証できなくなったClaimを`stale`にしますが、偽への変更や確信度の書き換えは行いません。
+
+MCPクライアントはEntityとRelationTypeの作成、Claimの提案・撤回、Eventの記録、Entity・RelationType・時点を条件とした知識検索を行えます。
+
+## Kotodamaのデータモデル
+
+```text
+Entity --< 有向／対称 Relation >-- Entity
+                       |
+                       +-- Claim -- 任意 --> Source
+                             |
+                             +-- 任意の認識主体（Entity）
+
+Entity -- Eventとしての追加情報 --> Event
+```
+
+- **Entity**: 人、組織、物、概念、Eventなどの識別対象です。
+- **RelationType**: Relationの意味、方向、strengthの可否、鮮度規則を定義します。
+- **Relation**: 2つのEntityを結ぶ有向または対称の構造です。対称RelationはEntity ID順に正規化します。
+- **Claim**: Relationについての主張です。極性、確信度、帰属確信度、strength、認識主体、Source、時点、状態を保持します。
+- **Source**: Claimの根拠となる文書、発言、URLなどです。Claimの認識主体とは別に管理します。
+- **Event**: 発生日時、actor、action、objectまたは値を持つEntityです。
+
+Claimは明示的な撤回で`active -> retracted`、`dream`で`active -> stale`へ遷移します。`stale`は再確認が必要という意味であり、偽ではありません。有効期間は`valid_from`を含み、`valid_to`を含みません。詳細は[Knowledge Model](KNOWLEDGE_MODEL.ja.md)を参照してください。
+
 ## 主な性質
 
 - Entity、RelationType、Relation、Claim、Source、Eventを分離して保存します。
