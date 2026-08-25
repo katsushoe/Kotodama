@@ -14,6 +14,7 @@
       <ComponentRef Id="ConfigDirectory" />
       <ComponentRef Id="DataDirectory" />
       <ComponentRef Id="LogsDirectory" />
+      <ComponentRef Id="PathEnvironment" />
     </Feature>
 
     <StandardDirectory Id="TARGETDIR">
@@ -21,7 +22,11 @@
         Id="INSTALLFOLDER"
         Name="Kotodama"
         ComponentGuidGenerationSeed="A4DCFC0C-0F6E-4576-AB66-D4E843DF5DA9">
-        <Directory Id="BinFolder" Name="bin" />
+        <Directory Id="BinFolder" Name="bin">
+          <Component Id="PathEnvironment" Guid="960B0AD7-E844-44BC-9BE6-689A6AF93643">
+            <Environment Id="PathEnvironmentEntry" Name="PATH" Value="[BinFolder]" Action="set" Part="last" System="yes" />
+          </Component>
+        </Directory>
         <Directory Id="ConfigFolder" Name="config">
           <Component Id="ConfigDirectory" Guid="2B4CFC32-87A2-42B8-9BAE-EB0AA6149C53">
             <CreateFolder />
