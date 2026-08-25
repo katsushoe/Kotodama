@@ -2,9 +2,9 @@
 
 ## 稼働確認
 
-MCP接続を初期化し、`get_version`が`Kotodama`と`0.4.0`を返すことを確認します。プロセスの存在確認だけでは正常性を保証しません。
+MCP接続を初期化し、`get_version`が`Kotodama`と`0.4.1`を返すことを確認します。プロセスの存在確認だけでは正常性を保証しません。
 
-MSI版のStreamable HTTP接続先は`http://127.0.0.1:39280/mcp`です。ログオン時に`Kotodama MCP Server` Scheduled Taskが起動します。認証未実装のためloopback以外へ転送・公開しないでください。
+MSI版のStreamable HTTP接続先は`http://127.0.0.1:39280/mcp`です。ログオン時に`Kotodama MCP Server` Scheduled Taskがウィンドウを表示せず起動します。認証未実装のためloopback以外へ転送・公開しないでください。
 
 ## dream運用
 
