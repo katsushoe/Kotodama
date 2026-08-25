@@ -4,7 +4,7 @@ Kotodamaは、AIエージェント向けの時間・認識主体・重みを扱�
 
 ## Kotodamaの概要
 
-Kotodamaは、AIエージェントが利用する知識をローカルのSQLiteへ永続化し、MCP stdio経由で登録・検索するサーバーです。Entity間の関係だけでなく、その関係を誰がどのSourceに基づいて主張したか、確信度、有効期間、観測日時、最終確認日時、鮮度も保持します。
+Kotodamaは、AIエージェントが利用する知識をローカルのSQLiteへ永続化し、MCP stdioまたはStreamable HTTP経由で登録・検索するサーバーです。Entity間の関係だけでなく、その関係を誰がどのSourceに基づいて主張したか、確信度、有効期間、観測日時、最終確認日時、鮮度も保持します。
 
 同じ関係について肯定と否定、複数のSource、異なる確信度を上書きせず共存させます。検索結果が空であることは「未知」を意味し、「偽」とは断定しません。定期処理`dream`は現在性を保証できなくなったClaimを`stale`にしますが、偽への変更や確信度の書き換えは行いません。
 
@@ -53,7 +53,7 @@ Claimは明示的な撤回で`active -> retracted`、`dream`で`active -> stale`
 - 情報が存在しない場合はfalseと断定せず、空の検索結果をunknownとして扱います。
 - Claimの有効期間、観測日時、最終確認日時、鮮度状態を保持します。
 - dreamは期限切れのClaimを否定せず、`active`から`stale`へ変更します。
-- stdioによるMCPサーバーとして13個のToolを提供します。
+- stdioとStreamable HTTPによるMCPサーバーとして13個のToolを提供します。
 
 ## MSIインストーラーを使う場合
 
@@ -102,7 +102,17 @@ MSI版の実行ファイルは次の場所です。
 C:\Kotodama\bin\Kotodama.exe
 ```
 
-KotodamaはMCP stdioサーバーです。通常はMCPクライアントから子プロセスとして起動し、標準入力へJSON-RPCを送り、標準出力から応答を受け取ります。直接起動すると入力待ちになります。
+Kotodamaは既定ではMCP stdioサーバーです。通常はMCPクライアントから子プロセスとして起動し、標準入力へJSON-RPCを送り、標準出力から応答を受け取ります。直接起動すると入力待ちになります。
+
+Streamable HTTPで起動する場合は次のように設定します。
+
+```powershell
+$env:KOTODAMA_TRANSPORT = "http"
+$env:KOTODAMA_HTTP_URL = "http://127.0.0.1:39280"
+& "C:\Kotodama\bin\Kotodama.exe"
+```
+
+接続先は`http://127.0.0.1:39280/mcp`です。認証・アクセス制御は未実装のため、HTTP待受はloopbackに制限されます。
 
 既定のデータベースは次の場所です。
 
@@ -126,9 +136,9 @@ dotnet run --project src/Kotodama
 - [運用手順](OPERATIONS.ja.md)
 - [Windowsインストール](INSTALLATION.ja.md)
 
-## v0.1の制約
+## 現在の制約
 
-- HTTP Transport、認証、暗号化、アクセス制御は提供しません。信頼できるローカルプロセス間で使用してください。
+- HTTP認証、認可、TLS終端は提供しません。Streamable HTTPは信頼できる端末のloopbackで使用してください。
 - dreamのWindows Service、常駐処理、Scheduled Task登録は未実装です。`run_dream`を外部スケジューラーまたはMCPクライアントから定期実行してください。
 - RelationTypeの編集・削除、Claimの再有効化、データの物理削除、バックアップCLIは未実装です。
 - ログは標準エラー出力へ送られます。MSIの`logs`ディレクトリへ自動保存する機能は未実装です。

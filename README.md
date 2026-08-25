@@ -10,7 +10,7 @@ Documentation index: [DOCUMENTS.ja.md](DOCUMENTS.ja.md)
 
 Kotodama is a local MCP server that gives AI agents a persistent knowledge graph backed by SQLite. It stores not only relationships between entities, but also who asserted them, their sources, confidence, validity periods, observation and confirmation times, and freshness. Conflicting positive and negative claims coexist instead of overwriting each other, and an absent claim means unknown rather than false.
 
-Clients communicate with Kotodama over MCP stdio to create entities and relation types, propose or retract claims, record events, and query knowledge by entity, relation type, or point in time. The `dream` process periodically marks claims whose currentness can no longer be assumed as `stale`; it does not rewrite them as false or change their confidence.
+Clients communicate with Kotodama over MCP stdio or opt-in Streamable HTTP to create entities and relation types, propose or retract claims, record events, and query knowledge by entity, relation type, or point in time. The `dream` process periodically marks claims whose currentness can no longer be assumed as `stale`; it does not rewrite them as false or change their confidence.
 
 ## What an AI gains from Kotodama
 
@@ -58,6 +58,16 @@ dotnet run --project src/Kotodama
 When `KOTODAMA_DB` is omitted, an installed copy creates `kotodama.db` in its `data` directory. Other layouts create it next to the executable. The server uses MCP stdio; logs are written to stderr.
 
 `KOTODAMA_DREAM_TEMP_STORE` selects the dream staging location: `Default`, `Memory`, or `File`. Dream calculates eligible Claim states in a connection-local temporary table, then publishes stale transitions atomically in a short transaction.
+
+To run the stateless Streamable HTTP transport on loopback:
+
+```powershell
+$env:KOTODAMA_TRANSPORT = "http"
+$env:KOTODAMA_HTTP_URL = "http://127.0.0.1:39280"
+dotnet run --project src/Kotodama
+```
+
+Connect the MCP client to `http://127.0.0.1:39280/mcp`. HTTP mode is restricted to loopback because authentication and authorization are not yet provided. See [configuration](CONFIG.ja.md) and [ADR-0001](ADR-0001-STREAMABLE-HTTP.ja.md).
 
 ## MCP tools
 
@@ -113,4 +123,4 @@ New-Item -ItemType Directory -Force data | Out-Null
 dotnet run --project src\Kotodama -c Release --no-build
 ```
 
-Kotodama is an MCP stdio server, so a direct launch waits for JSON-RPC input. In normal use, configure an MCP client to launch the executable or `dotnet run` command.
+Kotodama uses MCP stdio by default, so a direct launch waits for JSON-RPC input. Set the HTTP environment variables above to run it as a Streamable HTTP server instead.
