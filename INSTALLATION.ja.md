@@ -47,3 +47,13 @@ Get-FileHash .\Kotodama-0.1.0-x64.msi -Algorithm SHA256
 ```
 
 配布元が提示したSHA-256と一致する場合だけInstallしてください。
+
+## Portable ZIP
+
+ZIPは`Kotodama\bin`、`config`、`data`、`logs`の構成で展開されます。任意の書き込み可能な場所へ展開し、`bin\Kotodama.exe`をMCPクライアントから起動してください。自己完結型のため.NET Runtimeは不要です。
+
+ZIPはWindowsへ製品登録せず、Upgrade／Uninstall機能もありません。更新時はKotodamaを停止し、`data`をバックアップしてから、`bin`だけを新しい配布物で置き換えてください。
+
+## ソース配布
+
+ソースから使用する場合は.NET 10 SDKが必要です。Release Tagをcheckoutし、`dotnet restore`、`dotnet build -c Release`、`dotnet run`の順で実行します。DBパスは`KOTODAMA_DB`で明示することを推奨します。詳細なコマンドは[README.ja.md](README.ja.md)を参照してください。

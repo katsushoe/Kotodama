@@ -11,9 +11,48 @@ Kotodamaは、AIエージェント向けの時間・認識主体・重みを扱�
 - dreamは期限切れのClaimを否定せず、`active`から`stale`へ変更します。
 - stdioによるMCPサーバーとして13個のToolを提供します。
 
-## インストール版の起動
+## MSIインストーラーを使う場合
 
-実行ファイルは次の場所へインストールされます。
+[Kotodama-0.1.0-x64.msi](https://github.com/katsushoe/Kotodama/releases/download/v0.1.0/Kotodama-0.1.0-x64.msi)をダウンロードし、SHA-256を照合してから管理者権限で実行します。
+
+```powershell
+Get-FileHash .\Kotodama-0.1.0-x64.msi -Algorithm SHA256
+Start-Process msiexec.exe -Verb RunAs -Wait `
+  -ArgumentList '/i "Kotodama-0.1.0-x64.msi" /norestart'
+```
+
+インストール先は`C:\Kotodama`です。Windowsのインストール済みアプリへ登録され、UpgradeとUninstallに対応します。
+
+## ZIP配布を使う場合
+
+[Kotodama-0.1.0-win-x64.zip](https://github.com/katsushoe/Kotodama/releases/download/v0.1.0/Kotodama-0.1.0-win-x64.zip)をダウンロードし、書き込み可能な任意の場所へ展開します。
+
+```powershell
+Get-FileHash .\Kotodama-0.1.0-win-x64.zip -Algorithm SHA256
+Expand-Archive .\Kotodama-0.1.0-win-x64.zip -DestinationPath C:\Tools
+& C:\Tools\Kotodama\bin\Kotodama.exe
+```
+
+ZIPは自己完結型で、別途.NET Runtimeを必要としません。Windowsへの製品登録、`PATH`変更、自動Upgradeは行いません。更新時は展開先の`data`ディレクトリを保持してください。
+
+## ソース配布を使う場合
+
+.NET 10 SDKをインストールし、Gitから取得してビルドします。
+
+```powershell
+git clone https://github.com/katsushoe/Kotodama.git
+Set-Location Kotodama
+git checkout v0.1.0
+dotnet restore Kotodama.slnx
+dotnet build Kotodama.slnx -c Release --no-restore
+New-Item -ItemType Directory -Force data | Out-Null
+$env:KOTODAMA_DB = (Join-Path $PWD 'data\kotodama.db')
+dotnet run --project src\Kotodama -c Release --no-build
+```
+
+## 起動時の注意
+
+MSI版の実行ファイルは次の場所です。
 
 ```text
 C:\Kotodama\bin\Kotodama.exe
