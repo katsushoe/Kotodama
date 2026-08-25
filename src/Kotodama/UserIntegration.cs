@@ -8,6 +8,19 @@ internal static class UserIntegration
     internal const string TaskName = "Kotodama MCP Server";
     internal const string McpUrl = ServerSettings.DefaultHttpUrl + ServerSettings.HttpPath;
 
+    internal static async Task<int> ConfigureAllAsync(string baseDirectory, CancellationToken cancellationToken = default)
+    {
+        await ConfigureCodexAsync(baseDirectory, cancellationToken);
+        await ClaudeIntegration.ConfigureIfAvailableAsync(cancellationToken);
+        return 0;
+    }
+
+    internal static async Task<int> UnconfigureAllAsync(CancellationToken cancellationToken = default)
+    {
+        await ClaudeIntegration.UnconfigureIfAvailableAsync(cancellationToken);
+        return await UnconfigureCodexAsync(cancellationToken);
+    }
+
     internal static async Task<int> ConfigureCodexAsync(string baseDirectory, CancellationToken cancellationToken = default)
     {
         var executablePath = Path.Combine(baseDirectory, "Kotodama.exe");

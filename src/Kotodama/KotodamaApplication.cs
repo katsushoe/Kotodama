@@ -23,6 +23,26 @@ internal static class KotodamaApplication
             return UserIntegration.UnconfigureCodexAsync();
         }
 
+        if (args.SequenceEqual(["configure", "claude"], StringComparer.OrdinalIgnoreCase))
+        {
+            return ClaudeIntegration.ConfigureAsync();
+        }
+
+        if (args.SequenceEqual(["unconfigure", "claude"], StringComparer.OrdinalIgnoreCase))
+        {
+            return ClaudeIntegration.UnconfigureAsync();
+        }
+
+        if (args.SequenceEqual(["configure", "all"], StringComparer.OrdinalIgnoreCase))
+        {
+            return UserIntegration.ConfigureAllAsync(AppContext.BaseDirectory);
+        }
+
+        if (args.SequenceEqual(["unconfigure", "all"], StringComparer.OrdinalIgnoreCase))
+        {
+            return UserIntegration.UnconfigureAllAsync();
+        }
+
         var settings = args.Contains("--http", StringComparer.OrdinalIgnoreCase)
             ? ServerSettings.Parse("http", ServerSettings.DefaultHttpUrl)
             : ServerSettings.FromEnvironment();

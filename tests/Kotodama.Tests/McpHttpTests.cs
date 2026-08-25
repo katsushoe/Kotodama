@@ -60,7 +60,7 @@ public sealed class McpHttpTests : IAsyncLifetime
     {
         var result = await _client.CallToolAsync("get_version", cancellationToken: CancellationToken.None);
 
-        GetResponseJson(result).Should().Contain("Kotodama").And.Contain("0.4.1");
+        GetResponseJson(result).Should().Contain("Kotodama").And.Contain("0.5.0");
     }
 
     [Fact]
