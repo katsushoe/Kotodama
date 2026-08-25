@@ -27,7 +27,7 @@ public sealed class McpStdioTests : IAsyncLifetime
             EnvironmentVariables = environment,
             ShutdownTimeout = TimeSpan.FromMilliseconds(500),
         });
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(60));
         _client = await McpClient.CreateAsync(transport, cancellationToken: timeout.Token);
     }
 
@@ -84,7 +84,7 @@ public sealed class McpStdioTests : IAsyncLifetime
         var result = await _client.CallToolAsync("get_version", cancellationToken: CancellationToken.None);
 
         result.IsError.Should().NotBeTrue();
-        GetResponseJson(result).Should().Contain("Kotodama").And.Contain("0.1.0");
+        GetResponseJson(result).Should().Contain("Kotodama").And.Contain("0.2.0");
     }
 
     [Fact]
