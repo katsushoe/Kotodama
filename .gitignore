@@ -8,3 +8,5 @@ obj/
 *.db-wal
 TestResults/
 coverage/
+.tools/
+artifacts/

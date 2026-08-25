@@ -7,7 +7,7 @@ try
 {
     var builder = Host.CreateApplicationBuilder(args);
     builder.Logging.AddConsole(options => options.LogToStandardErrorThreshold = LogLevel.Trace);
-    var databasePath = Environment.GetEnvironmentVariable("KOTODAMA_DB") ?? Path.Combine(AppContext.BaseDirectory, "kotodama.db");
+    var databasePath = Environment.GetEnvironmentVariable("KOTODAMA_DB") ?? ApplicationPaths.GetDefaultDatabasePath(AppContext.BaseDirectory);
     var tempStoreText = Environment.GetEnvironmentVariable("KOTODAMA_DREAM_TEMP_STORE");
     var tempStore = Enum.TryParse<DreamTempStore>(tempStoreText, true, out var parsedTempStore) ? parsedTempStore : DreamTempStore.Default;
     builder.Services.AddSingleton(TimeProvider.System);

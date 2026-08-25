@@ -1,0 +1,47 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package
+    Name="Kotodama"
+    Manufacturer="AkatsukiSoft"
+    Version="$(ProductVersion)"
+    UpgradeCode="5D5177C6-B6D1-49D5-B2D8-34E814449272"
+    Scope="perMachine">
+    <Property Id="ROOTDRIVE" Value="C:\" />
+    <MajorUpgrade DowngradeErrorMessage="A newer version of Kotodama is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <Feature Id="ProductFeature" Title="Kotodama" Level="1">
+      <ComponentGroupRef Id="ApplicationFiles" />
+      <ComponentRef Id="ConfigDirectory" />
+      <ComponentRef Id="DataDirectory" />
+      <ComponentRef Id="LogsDirectory" />
+    </Feature>
+
+    <StandardDirectory Id="TARGETDIR">
+      <Directory
+        Id="INSTALLFOLDER"
+        Name="Kotodama"
+        ComponentGuidGenerationSeed="A4DCFC0C-0F6E-4576-AB66-D4E843DF5DA9">
+        <Directory Id="BinFolder" Name="bin" />
+        <Directory Id="ConfigFolder" Name="config">
+          <Component Id="ConfigDirectory" Guid="2B4CFC32-87A2-42B8-9BAE-EB0AA6149C53">
+            <CreateFolder />
+          </Component>
+        </Directory>
+        <Directory Id="DataFolder" Name="data">
+          <Component Id="DataDirectory" Guid="407446C4-A6A8-4893-82EC-8FFEDB1EFC22">
+            <CreateFolder />
+          </Component>
+        </Directory>
+        <Directory Id="LogsFolder" Name="logs">
+          <Component Id="LogsDirectory" Guid="1658779F-7A3D-4F2E-A728-F132530605BE">
+            <CreateFolder />
+          </Component>
+        </Directory>
+      </Directory>
+    </StandardDirectory>
+
+    <ComponentGroup Id="ApplicationFiles" Directory="BinFolder">
+      <Files Include="$(PublishDir)\**" />
+    </ComponentGroup>
+  </Package>
+</Wix>
