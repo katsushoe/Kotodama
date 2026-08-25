@@ -2,6 +2,10 @@
 
 SQLite based temporal, epistemic and weighted Knowledge Graph MCP server for AI agents.
 
+Japanese documentation: [README.ja.md](README.ja.md)
+
+Documentation index: [DOCUMENTS.ja.md](DOCUMENTS.ja.md)
+
 ## Run
 
 ```powershell
