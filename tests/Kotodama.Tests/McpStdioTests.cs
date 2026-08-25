@@ -43,6 +43,28 @@ public sealed class McpStdioTests : IAsyncLifetime
     {
         _client.ServerInfo.Name.Should().NotBeNullOrWhiteSpace();
         _client.ServerCapabilities.Tools.Should().NotBeNull();
+        _client.ServerCapabilities.Prompts.Should().NotBeNull();
+        _client.ServerInstructions.Should().Contain("persistent structured knowledge");
+        _client.ServerInstructions.Should().Contain("Do not store secrets");
+    }
+
+    [Fact]
+    public async Task ListPrompts_ReturnsKotodamaGluePrompt()
+    {
+        var prompts = await _client.ListPromptsAsync(cancellationToken: CancellationToken.None);
+
+        prompts.Should().ContainSingle(x => x.Name == "use_kotodama");
+    }
+
+    [Fact]
+    public async Task GetPrompt_ReturnsKnowledgeRegistrationWorkflow()
+    {
+        var result = await _client.GetPromptAsync("use_kotodama", cancellationToken: CancellationToken.None);
+        var text = result.Messages.Select(x => x.Content).OfType<TextContentBlock>().Single().Text;
+
+        text.Should().Contain("search_entities");
+        text.Should().Contain("propose_claim");
+        text.Should().Contain("ask the user");
     }
 
     [Fact]
