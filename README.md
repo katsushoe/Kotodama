@@ -12,6 +12,19 @@ Kotodama is a local MCP server that gives AI agents a persistent knowledge graph
 
 Clients communicate with Kotodama over MCP stdio to create entities and relation types, propose or retract claims, record events, and query knowledge by entity, relation type, or point in time. The `dream` process periodically marks claims whose currentness can no longer be assumed as `stale`; it does not rewrite them as false or change their confidence.
 
+## What an AI gains from Kotodama
+
+After Kotodama is installed and registered as an MCP server, an MCP-capable AI can use its tools to:
+
+- retain structured knowledge across tasks and sessions instead of relying only on the current conversation;
+- retrieve facts together with their source, confidence, knowledge subject, and valid time;
+- keep contradictory reports side by side and reason about them without silently overwriting either one;
+- distinguish "not known" from an explicitly negative claim;
+- find related entities and reconstruct the knowledge context around a person, organization, object, or event;
+- detect claims that need reconfirmation through `stale` status and `dream` processing.
+
+For example, an AI can remember that a person belonged to an organization during a particular period, preserve both an official announcement and a conflicting report, and later answer with the applicable time and evidence. Kotodama provides storage and retrieval tools; the AI or MCP client must call those tools, and Kotodama does not automatically import conversations or update knowledge from the Internet.
+
 ## Data model
 
 ```text
