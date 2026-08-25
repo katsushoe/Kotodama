@@ -11,6 +11,7 @@ internal enum McpTransport
 internal sealed record ServerSettings(McpTransport Transport, Uri? HttpUrl)
 {
     internal const string HttpPath = "/mcp";
+    internal const string DefaultHttpUrl = "http://127.0.0.1:39280";
 
     /// <summary>環境変数からTransport設定を読み取ります。</summary>
     internal static ServerSettings FromEnvironment() => Parse(

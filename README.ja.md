@@ -139,6 +139,6 @@ dotnet run --project src/Kotodama
 ## 現在の制約
 
 - HTTP認証、認可、TLS終端は提供しません。Streamable HTTPは信頼できる端末のloopbackで使用してください。
-- dreamのWindows Service、常駐処理、Scheduled Task登録は未実装です。`run_dream`を外部スケジューラーまたはMCPクライアントから定期実行してください。
+- MSI版はHTTPサーバーをScheduled Taskで常駐させますが、dream自体の定期実行は未実装です。`run_dream`を外部スケジューラーまたはMCPクライアントから定期実行してください。
 - RelationTypeの編集・削除、Claimの再有効化、データの物理削除、バックアップCLIは未実装です。
 - ログは標準エラー出力へ送られます。MSIの`logs`ディレクトリへ自動保存する機能は未実装です。

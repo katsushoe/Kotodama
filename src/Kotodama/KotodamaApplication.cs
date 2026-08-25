@@ -13,7 +13,19 @@ internal static class KotodamaApplication
     /// <summary>設定されたTransportでKotodamaを実行します。</summary>
     internal static Task<int> RunAsync(string[] args)
     {
-        var settings = ServerSettings.FromEnvironment();
+        if (args.SequenceEqual(["configure", "codex"], StringComparer.OrdinalIgnoreCase))
+        {
+            return UserIntegration.ConfigureCodexAsync(AppContext.BaseDirectory);
+        }
+
+        if (args.SequenceEqual(["unconfigure", "codex"], StringComparer.OrdinalIgnoreCase))
+        {
+            return UserIntegration.UnconfigureCodexAsync();
+        }
+
+        var settings = args.Contains("--http", StringComparer.OrdinalIgnoreCase)
+            ? ServerSettings.Parse("http", ServerSettings.DefaultHttpUrl)
+            : ServerSettings.FromEnvironment();
         return settings.Transport == McpTransport.Http ? RunHttpAsync(args, settings) : RunStdioAsync(args);
     }
 
