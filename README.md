@@ -6,6 +6,33 @@ Japanese documentation: [README.ja.md](README.ja.md)
 
 Documentation index: [DOCUMENTS.ja.md](DOCUMENTS.ja.md)
 
+## Overview
+
+Kotodama is a local MCP server that gives AI agents a persistent knowledge graph backed by SQLite. It stores not only relationships between entities, but also who asserted them, their sources, confidence, validity periods, observation and confirmation times, and freshness. Conflicting positive and negative claims coexist instead of overwriting each other, and an absent claim means unknown rather than false.
+
+Clients communicate with Kotodama over MCP stdio to create entities and relation types, propose or retract claims, record events, and query knowledge by entity, relation type, or point in time. The `dream` process periodically marks claims whose currentness can no longer be assumed as `stale`; it does not rewrite them as false or change their confidence.
+
+## Data model
+
+```text
+Entity --< directed/symmetric Relation >-- Entity
+                         |
+                         +-- Claim -- optional --> Source
+                               |
+                               +-- optional knowledge subject (Entity)
+
+Entity -- optional specialization --> Event
+```
+
+- **Entity** identifies a person, organization, object, concept, or event.
+- **RelationType** defines a relation's meaning, directionality, optional strength, and freshness policy.
+- **Relation** is the normalized directed or symmetric edge between two entities.
+- **Claim** is an assertion about a relation. It carries polarity, confidence, optional attribution confidence and strength, temporal fields, knowledge subject, source, and status.
+- **Source** describes evidence such as a document, statement, or URL. It is distinct from the entity that knows or asserts the claim.
+- **Event** is an entity with an occurrence time, actor, action, and object or value.
+
+Claim status transitions are `active -> retracted` by explicit retraction and `active -> stale` by `dream`. `stale` means that currentness needs confirmation; it does not mean false. Validity uses a half-open interval: `valid_from` is inclusive and `valid_to` is exclusive. See [Knowledge Model](KNOWLEDGE_MODEL.ja.md) for details.
+
 ## Run
 
 ```powershell
