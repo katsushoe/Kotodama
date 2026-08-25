@@ -4,7 +4,7 @@
 
 - Windows x64
 - 管理者権限
-- 配布物: `Kotodama-0.1.0-x64.msi`
+- 配布物: `Kotodama-0.2.0-x64.msi`
 
 MSIは自己完結型の.NET実行環境を含むため、利用端末へ別途.NET Runtimeを入れる必要はありません。
 
@@ -21,10 +21,10 @@ C:\Kotodama\
 ## Install
 
 ```powershell
-Start-Process msiexec.exe -Verb RunAs -Wait -ArgumentList '/i "Kotodama-0.1.0-x64.msi" /norestart'
+Start-Process msiexec.exe -Verb RunAs -Wait -ArgumentList '/i "Kotodama-0.2.0-x64.msi" /norestart'
 ```
 
-無人Installでは`/qn`を追加します。完了後、Windowsのインストール済みアプリに`Kotodama 0.1.0`が表示されることと、`C:\Kotodama\bin\Kotodama.exe`のFile Versionが`0.1.0.0`であることを確認します。
+無人Installでは`/qn`を追加します。完了後、Windowsのインストール済みアプリに`Kotodama 0.2.0`が表示されることと、`C:\Kotodama\bin\Kotodama.exe`のFile Versionが`0.2.0.0`であることを確認します。
 
 ## Upgrade
 
@@ -43,7 +43,7 @@ MSIはアプリ本体を削除します。利用者DB等が残っている非空
 ## Hash確認
 
 ```powershell
-Get-FileHash .\Kotodama-0.1.0-x64.msi -Algorithm SHA256
+Get-FileHash .\Kotodama-0.2.0-x64.msi -Algorithm SHA256
 ```
 
 配布元が提示したSHA-256と一致する場合だけInstallしてください。
