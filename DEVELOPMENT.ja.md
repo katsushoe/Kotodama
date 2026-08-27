@@ -16,7 +16,7 @@ dotnet test Kotodama.slnx -c Release --no-restore
 dotnet format Kotodama.slnx --verify-no-changes --no-restore
 ```
 
-現在のテストは57件です。規則検証、Open World、競合Claim、対称Relation、時間境界、Source、Event、dreamの各格納方式、実並行処理、障害注入、MCP stdio結合を含みます。
+テストには規則検証、Open World、競合Claim、対称Relation、時間境界、Source、Event、dreamの各格納方式、実並行処理、障害注入、MCP stdio／Streamable HTTP結合を含みます。
 
 ## MSI生成
 
@@ -28,9 +28,9 @@ dotnet publish src/Kotodama/Kotodama.csproj `
 $publishDir = (Resolve-Path artifacts/publish/win-x64).Path
 .tools/wix build installer/Package.wxs `
   -arch x64 `
-  -d ProductVersion=0.1.0 `
+  -d ProductVersion=0.6.0 `
   -d PublishDir=$publishDir `
-  -o artifacts/release/Kotodama-0.1.0-x64.msi
+  -o artifacts/release/Kotodama-0.6.0-x64.msi
 ```
 
 ## リリース完了条件
