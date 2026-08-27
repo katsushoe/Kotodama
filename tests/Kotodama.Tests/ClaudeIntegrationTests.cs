@@ -18,4 +18,11 @@ public sealed class ClaudeIntegrationTests
         ClaudeIntegration.BuildRemoveArguments().Should().ContainInOrder(
             "mcp", "remove", "--scope", "user", "kotodama");
     }
+
+    [Fact]
+    public void BuildHookCommand_UsesQuotedExecutableAndIntegrationMarker()
+    {
+        ClaudeHookConfig.BuildCommand(@"C:\Program Files\Kotodama\Kotodama.exe", "stop")
+            .Should().Be("\"C:\\Program Files\\Kotodama\\Kotodama.exe\" hook claude stop --integration-id kotodama");
+    }
 }

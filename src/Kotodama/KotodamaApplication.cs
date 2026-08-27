@@ -25,7 +25,7 @@ internal static class KotodamaApplication
 
         if (args.SequenceEqual(["configure", "claude"], StringComparer.OrdinalIgnoreCase))
         {
-            return ClaudeIntegration.ConfigureAsync();
+            return ClaudeIntegration.ConfigureAsync(AppContext.BaseDirectory);
         }
 
         if (args.SequenceEqual(["unconfigure", "claude"], StringComparer.OrdinalIgnoreCase))
@@ -41,6 +41,13 @@ internal static class KotodamaApplication
         if (args.SequenceEqual(["unconfigure", "all"], StringComparer.OrdinalIgnoreCase))
         {
             return UserIntegration.UnconfigureAllAsync();
+        }
+
+        if (args.Length >= 3 &&
+            args[0].Equals("hook", StringComparison.OrdinalIgnoreCase) &&
+            args[1].Equals("claude", StringComparison.OrdinalIgnoreCase))
+        {
+            return ClaudeHookCommand.RunAsync(args[2], Console.In, Console.Out);
         }
 
         var settings = args.Contains("--http", StringComparer.OrdinalIgnoreCase)

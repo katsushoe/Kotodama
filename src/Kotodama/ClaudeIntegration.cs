@@ -12,26 +12,31 @@ internal static class ClaudeIntegration
     internal static string[] BuildRemoveArguments() =>
         ["mcp", "remove", "--scope", "user", "kotodama"];
 
-    internal static async Task<int> ConfigureAsync(CancellationToken cancellationToken = default)
+    internal static async Task<int> ConfigureAsync(string baseDirectory, CancellationToken cancellationToken = default)
     {
         var executable = FindExecutable() ?? throw new InvalidOperationException("Claude Code is not installed or claude.exe is not on PATH.");
         await RunAsync(executable, BuildRemoveArguments(), false, cancellationToken);
         await RunAsync(executable, BuildAddArguments(), true, cancellationToken);
+        ClaudeHookConfig.Update(GetSettingsPath(), Path.Combine(baseDirectory, "Kotodama.exe"));
         return 0;
     }
 
     internal static async Task<int> UnconfigureAsync(CancellationToken cancellationToken = default)
     {
-        var executable = FindExecutable() ?? throw new InvalidOperationException("Claude Code is not installed or claude.exe is not on PATH.");
-        await RunAsync(executable, BuildRemoveArguments(), false, cancellationToken);
+        ClaudeHookConfig.Remove(GetSettingsPath());
+        var executable = FindExecutable();
+        if (executable is not null) await RunAsync(executable, BuildRemoveArguments(), false, cancellationToken);
         return 0;
     }
 
-    internal static Task<int> ConfigureIfAvailableAsync(CancellationToken cancellationToken = default) =>
-        FindExecutable() is null ? Task.FromResult(0) : ConfigureAsync(cancellationToken);
+    internal static Task<int> ConfigureIfAvailableAsync(string baseDirectory, CancellationToken cancellationToken = default) =>
+        FindExecutable() is null ? Task.FromResult(0) : ConfigureAsync(baseDirectory, cancellationToken);
 
     internal static Task<int> UnconfigureIfAvailableAsync(CancellationToken cancellationToken = default) =>
-        FindExecutable() is null ? Task.FromResult(0) : UnconfigureAsync(cancellationToken);
+        UnconfigureAsync(cancellationToken);
+
+    internal static string GetSettingsPath() =>
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".claude", "settings.json");
 
     internal static string? FindExecutable()
     {

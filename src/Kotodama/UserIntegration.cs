@@ -11,7 +11,7 @@ internal static class UserIntegration
     internal static async Task<int> ConfigureAllAsync(string baseDirectory, CancellationToken cancellationToken = default)
     {
         await ConfigureCodexAsync(baseDirectory, cancellationToken);
-        await ClaudeIntegration.ConfigureIfAvailableAsync(cancellationToken);
+        await ClaudeIntegration.ConfigureIfAvailableAsync(baseDirectory, cancellationToken);
         return 0;
     }
 
