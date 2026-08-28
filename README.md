@@ -25,7 +25,7 @@ After Kotodama is installed and registered as an MCP server, an MCP-capable AI c
 
 For example, an AI can remember that a person belonged to an organization during a particular period, preserve both an official announcement and a conflicting report, and later answer with the applicable time and evidence. Kotodama provides storage and retrieval tools; the AI or MCP client must call those tools, and Kotodama does not automatically import conversations or update knowledge from the Internet.
 
-Kotodama supplies server instructions during MCP initialization and exposes the `use_kotodama` MCP prompt. For Claude Code, `configure claude` also installs hooks that prompt knowledge retrieval before an answer and knowledge review after it. Raw transcripts are never stored; only supported, reusable structured knowledge selected by the AI is written through MCP tools. Codex uses the server instructions and prompt integration.
+Kotodama supplies server instructions during MCP initialization and exposes the `use_kotodama` MCP prompt. `configure claude` and `configure codex` also install client hooks that prompt knowledge retrieval before an answer and knowledge review after it. Raw transcripts are never stored; only supported, reusable structured knowledge selected by the AI is written through MCP tools.
 
 ## Data model
 

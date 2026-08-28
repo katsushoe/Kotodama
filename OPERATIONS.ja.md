@@ -2,9 +2,11 @@
 
 ## 稼働確認
 
-MCP接続を初期化し、`get_version`が`Kotodama`と`0.6.0`を返すことを確認します。プロセスの存在確認だけでは正常性を保証しません。
+MCP接続を初期化し、`get_version`が`Kotodama`と`0.7.0`を返すことを確認します。プロセスの存在確認だけでは正常性を保証しません。
 
 Claude Codeでは`~/.claude/settings.json`の`UserPromptSubmit`と`Stop`に`--integration-id kotodama`を含むHookがあることを確認します。`kotodama configure claude`はMCP接続とHooksを登録し、`kotodama unconfigure claude`はKotodama固有設定だけを削除します。
+
+Codexでは`~/.codex/hooks.json`の`UserPromptSubmit`と`Stop`に`--integration-id kotodama`を含むHookがあることを確認します。初回の信頼確認で内容を確認して許可してください。`kotodama unconfigure codex`はKotodama固有HookとMCP接続だけを削除します。
 
 MSI版のStreamable HTTP接続先は`http://127.0.0.1:39280/mcp`です。ログオン時に`Kotodama MCP Server` Scheduled Taskがウィンドウを表示せず起動します。認証未実装のためloopback以外へ転送・公開しないでください。
 

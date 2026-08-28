@@ -1,4 +1,4 @@
-# ADR-0002 Claude Code Hooksによる知識利用の自動化
+# ADR-0002 AIクライアントHooksによる知識利用の自動化
 
 ## Status
 
@@ -10,11 +10,11 @@ MCP Server InstructionsとPromptの採用はクライアントに依存するた
 
 ## Decision
 
-Claude Codeのユーザースコープ`UserPromptSubmit` Hookから回答前の検索指針を追加し、`Stop` Hookから主エージェントへ永続化候補の確認を一度だけ要求します。知識の意味判断とMCP Tool呼び出しは主エージェントが行い、HookやKotodama DBは生の会話履歴を保存しません。
+Claude CodeとCodexのユーザースコープ`UserPromptSubmit` Hookから回答前の検索指針を追加し、`Stop` Hookから主エージェントへ永続化候補の確認を一度だけ要求します。知識の意味判断とMCP Tool呼び出しは主エージェントが行い、HookやKotodama DBは生の会話履歴を保存しません。
 
-`Stop`入力の`stop_hook_active`がtrueの場合は継続要求を返さず、無限ループを防ぎます。Hook障害はClaude Codeの標準的な非ブロッキングHookエラーとして扱い、認証情報、秘密情報、推測、未承認の機微な個人情報は登録対象外とします。
+Claude Codeは`Stop`入力の`stop_hook_active`、Codexはセッション単位の一時再入マーカーにより、継続要求を一度に制限します。Hook障害はクライアントの標準的な非ブロッキングHookエラーとして扱い、認証情報、秘密情報、推測、未承認の機微な個人情報は登録対象外とします。
 
-Codexには同等の公開ライフサイクルHookがないため、Server InstructionsとMCP Promptをフォールバックとして維持します。
+Server InstructionsとMCP Promptは、Hooksを無効化した環境や未対応クライアント向けの標準MCPフォールバックとして維持します。
 
 ## 代替案と不採用理由
 
@@ -24,7 +24,7 @@ Codexには同等の公開ライフサイクルHookがないため、Server Inst
 
 ## 影響範囲
 
-`kotodama configure claude`と`configure all`はClaude MCP設定に加え、`~/.claude/settings.json`へKotodama固有Hookを追加します。unconfigureはKotodama固有Hookだけを削除し、他製品のHookを保持します。
+`kotodama configure claude`は`~/.claude/settings.json`、`configure codex`は`~/.codex/hooks.json`へKotodama固有Hookを追加します。unconfigureはKotodama固有Hookだけを削除し、他製品のHookを保持します。Codex Hookの信頼可否はCodexの信頼確認機構を迂回せず、利用者が判断します。
 
 ## セキュリティ条件
 

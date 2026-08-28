@@ -23,7 +23,7 @@ KotodamaをインストールしてMCPサーバーとして登録すると、MCP
 
 例えば、「ある人物が特定期間に組織へ所属していた」という知識を保持し、公式発表とそれに反する報告を両方保存したうえで、後から該当時点と根拠を伴って回答できます。Kotodamaが提供するのは知識の保存・検索Toolです。AIまたはMCPクライアントがToolを呼び出す必要があり、会話の自動取り込みやInternet上の知識の自動更新は行いません。
 
-KotodamaはMCP初期化時にServer Instructionsを返し、`use_kotodama` MCP Promptも提供します。Claude Codeでは`configure claude`がHooksも設定し、回答前の検索と応答後の知識登録確認を自動化します。生の会話履歴は保存せず、AIが再利用可能と判断した、根拠のある構造化知識だけをMCP Tool経由で登録します。CodexはServer InstructionsとPromptによる連携です。
+KotodamaはMCP初期化時にServer Instructionsを返し、`use_kotodama` MCP Promptも提供します。`configure claude`と`configure codex`は各クライアントのHooksも設定し、回答前の検索と応答後の知識登録確認を自動化します。生の会話履歴は保存せず、AIが再利用可能と判断した、根拠のある構造化知識だけをMCP Tool経由で登録します。
 
 ## Kotodamaのデータモデル
 
