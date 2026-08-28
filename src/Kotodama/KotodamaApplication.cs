@@ -45,9 +45,10 @@ internal static class KotodamaApplication
 
         if (args.Length >= 3 &&
             args[0].Equals("hook", StringComparison.OrdinalIgnoreCase) &&
-            args[1].Equals("claude", StringComparison.OrdinalIgnoreCase))
+            (args[1].Equals("claude", StringComparison.OrdinalIgnoreCase) ||
+             args[1].Equals("codex", StringComparison.OrdinalIgnoreCase)))
         {
-            return ClaudeHookCommand.RunAsync(args[2], Console.In, Console.Out);
+            return ClaudeHookCommand.RunAsync(args[1], args[2], Console.In, Console.Out);
         }
 
         var settings = args.Contains("--http", StringComparer.OrdinalIgnoreCase)

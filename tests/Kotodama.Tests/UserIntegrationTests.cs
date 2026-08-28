@@ -22,4 +22,10 @@ public sealed class UserIntegrationTests
             "/TR", "\"C:\\Kotodama\\bin\\Kotodama.exe\" --http",
             "/RL", "LIMITED", "/F");
     }
+
+    [Fact]
+    public void GetCodexHooksPath_UsesUserScopedCodexHooksFile()
+    {
+        UserIntegration.GetCodexHooksPath().Should().EndWith(Path.Combine(".codex", "hooks.json"));
+    }
 }

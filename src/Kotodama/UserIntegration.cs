@@ -33,12 +33,14 @@ internal static class UserIntegration
         {
             await RunRequiredAsync("schtasks.exe", BuildCreateTaskArguments(executablePath), cancellationToken);
             CodexConfig.Update(GetCodexConfigPath(), McpUrl);
+            CodexHookConfig.Update(GetCodexHooksPath(), executablePath);
             await RunRequiredAsync("schtasks.exe", ["/Run", "/TN", TaskName], cancellationToken);
             return 0;
         }
         catch
         {
             CodexConfig.Remove(GetCodexConfigPath());
+            CodexHookConfig.Remove(GetCodexHooksPath());
             await RunOptionalAsync("schtasks.exe", ["/Delete", "/TN", TaskName, "/F"], cancellationToken);
             throw;
         }
@@ -47,6 +49,7 @@ internal static class UserIntegration
     internal static async Task<int> UnconfigureCodexAsync(CancellationToken cancellationToken = default)
     {
         CodexConfig.Remove(GetCodexConfigPath());
+        CodexHookConfig.Remove(GetCodexHooksPath());
         await RunOptionalAsync("schtasks.exe", ["/End", "/TN", TaskName], cancellationToken);
         await RunOptionalAsync("schtasks.exe", ["/Delete", "/TN", TaskName, "/F"], cancellationToken);
         return 0;
@@ -64,6 +67,9 @@ internal static class UserIntegration
 
     internal static string GetCodexConfigPath() =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".codex", "config.toml");
+
+    internal static string GetCodexHooksPath() =>
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".codex", "hooks.json");
 
     private static Task RunRequiredAsync(string fileName, IReadOnlyList<string> arguments, CancellationToken cancellationToken) =>
         RunAsync(fileName, arguments, true, cancellationToken);
