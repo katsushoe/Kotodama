@@ -11,12 +11,13 @@ Kotodamaの設定は環境変数で指定します。設定ファイルの自動
 | `KOTODAMA_DREAM_INTERVAL_SECONDS` | 1以上の整数 | `3600` | HTTP常駐時のdream実行間隔（秒） |
 | `KOTODAMA_TRANSPORT` | `stdio`、`http` | `stdio` | MCP Transport |
 | `KOTODAMA_HTTP_URL` | loopbackの絶対HTTP／HTTPS URL | なし | HTTPモードの待受URL。HTTPモードでは必須 |
+| `KOTODAMA_HTTP_TOKEN` | Bearer token文字列 | なし | 設定時は`/mcp`への全要求でBearer認証を必須化 |
 
 `KOTODAMA_DREAM_TEMP_STORE`は大文字小文字を区別しません。不明な値はエラーにせず`Default`として扱います。
 
 `KOTODAMA_DREAM_INTERVAL_SECONDS`が未設定、不正、0以下の場合は3600秒です。stdioモードでは定期dreamを起動しません。
 
-`KOTODAMA_TRANSPORT`は大文字小文字を区別しません。不明な値、HTTPモードでのURL未指定、loopback以外のhost、URL内のpath・query・fragment・userinfoは起動エラーです。MCP endpointは指定URLの`/mcp`です。認証とアクセス制御がないため、loopback以外には公開できません。
+`KOTODAMA_TRANSPORT`は大文字小文字を区別しません。不明な値、HTTPモードでのURL未指定、loopback以外のhost、URL内のpath・query・fragment・userinfoは起動エラーです。MCP endpointは指定URLの`/mcp`です。`KOTODAMA_HTTP_TOKEN`設定時は`Authorization: Bearer <token>`が必要です。tokenはログへ出力しません。認証の有無にかかわらずloopback以外には公開できません。
 
 ## DBパスの決定順序
 
@@ -42,9 +43,10 @@ Streamable HTTPで起動する例です。
 ```powershell
 $env:KOTODAMA_TRANSPORT = "http"
 $env:KOTODAMA_HTTP_URL = "http://127.0.0.1:39280"
+$env:KOTODAMA_HTTP_TOKEN = "十分に長いランダムなtoken"
 & "C:\Kotodama\bin\Kotodama.exe"
 ```
 
 MCPクライアントの接続先は`http://127.0.0.1:39280/mcp`です。
 
-データベースの親ディレクトリは事前に作成し、Kotodama実行ユーザーへ書き込み権限を付与してください。認証Token等の秘密情報を扱う設定はありません。
+データベースの親ディレクトリは事前に作成し、Kotodama実行ユーザーへ書き込み権限を付与してください。tokenは環境変数を参照できる同一ユーザーのプロセスから読み取られる可能性があるため、端末を共有する場合はOSのユーザーを分離してください。

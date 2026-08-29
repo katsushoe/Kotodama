@@ -1,3 +1,6 @@
+using System.Net.Http.Headers;
+using System.Security.Cryptography;
+using System.Text;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
@@ -57,7 +60,7 @@ internal static class KotodamaApplication
         }
 
         var settings = args.Contains("--http", StringComparer.OrdinalIgnoreCase)
-            ? ServerSettings.Parse("http", ServerSettings.DefaultHttpUrl)
+            ? ServerSettings.Parse("http", ServerSettings.DefaultHttpUrl, Environment.GetEnvironmentVariable("KOTODAMA_HTTP_TOKEN"))
             : ServerSettings.FromEnvironment();
         return settings.Transport == McpTransport.Http ? RunHttpAsync(args, settings) : RunStdioAsync(args);
     }
@@ -86,6 +89,22 @@ internal static class KotodamaApplication
         AddMcpPrimitives(builder.Services.AddMcpServer().WithHttpTransport(options => options.Stateless = true));
 
         await using var app = builder.Build();
+        if (settings.HttpToken is not null)
+        {
+            app.Use(async (context, next) =>
+            {
+                if (context.Request.Path.StartsWithSegments(ServerSettings.HttpPath) &&
+                    !HasValidBearerToken(context.Request.Headers.Authorization.ToString(), settings.HttpToken))
+                {
+                    context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                    context.Response.Headers.WWWAuthenticate = "Bearer";
+                    return;
+                }
+
+                await next(context);
+            });
+        }
+
         app.MapMcp(ServerSettings.HttpPath);
         await InitializeStoreAsync(app.Services);
         await app.RunAsync();
@@ -123,4 +142,18 @@ internal static class KotodamaApplication
 
     private static Task InitializeStoreAsync(IServiceProvider services) =>
         services.GetRequiredService<KnowledgeStore>().InitializeAsync();
+
+    private static bool HasValidBearerToken(string authorizationHeader, string expectedToken)
+    {
+        if (!AuthenticationHeaderValue.TryParse(authorizationHeader, out var authorization) ||
+            !authorization.Scheme.Equals("Bearer", StringComparison.OrdinalIgnoreCase) ||
+            string.IsNullOrEmpty(authorization.Parameter))
+        {
+            return false;
+        }
+
+        var actualHash = SHA256.HashData(Encoding.UTF8.GetBytes(authorization.Parameter));
+        var expectedHash = SHA256.HashData(Encoding.UTF8.GetBytes(expectedToken));
+        return CryptographicOperations.FixedTimeEquals(actualHash, expectedHash);
+    }
 }

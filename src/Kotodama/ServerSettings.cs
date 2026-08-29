@@ -8,7 +8,7 @@ internal enum McpTransport
 }
 
 /// <summary>起動時のMCP Transport設定です。</summary>
-internal sealed record ServerSettings(McpTransport Transport, Uri? HttpUrl)
+internal sealed record ServerSettings(McpTransport Transport, Uri? HttpUrl, string? HttpToken)
 {
     internal const string HttpPath = "/mcp";
     internal const string DefaultHttpUrl = "http://127.0.0.1:39280";
@@ -16,14 +16,15 @@ internal sealed record ServerSettings(McpTransport Transport, Uri? HttpUrl)
     /// <summary>環境変数からTransport設定を読み取ります。</summary>
     internal static ServerSettings FromEnvironment() => Parse(
         Environment.GetEnvironmentVariable("KOTODAMA_TRANSPORT"),
-        Environment.GetEnvironmentVariable("KOTODAMA_HTTP_URL"));
+        Environment.GetEnvironmentVariable("KOTODAMA_HTTP_URL"),
+        Environment.GetEnvironmentVariable("KOTODAMA_HTTP_TOKEN"));
 
     /// <summary>Transport名とHTTP URLを検証します。</summary>
-    internal static ServerSettings Parse(string? transportText, string? httpUrlText)
+    internal static ServerSettings Parse(string? transportText, string? httpUrlText, string? httpTokenText = null)
     {
         if (string.IsNullOrWhiteSpace(transportText) || transportText.Equals("stdio", StringComparison.OrdinalIgnoreCase))
         {
-            return new(McpTransport.Stdio, null);
+            return new(McpTransport.Stdio, null, null);
         }
 
         if (!transportText.Equals("http", StringComparison.OrdinalIgnoreCase))
@@ -51,6 +52,7 @@ internal sealed record ServerSettings(McpTransport Transport, Uri? HttpUrl)
             throw new InvalidOperationException("KOTODAMA_HTTP_URL must contain only the scheme, loopback host, and port.");
         }
 
-        return new(McpTransport.Http, httpUrl);
+        var httpToken = string.IsNullOrWhiteSpace(httpTokenText) ? null : httpTokenText;
+        return new(McpTransport.Http, httpUrl, httpToken);
     }
 }

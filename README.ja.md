@@ -109,10 +109,11 @@ Streamable HTTPで起動する場合は次のように設定します。
 ```powershell
 $env:KOTODAMA_TRANSPORT = "http"
 $env:KOTODAMA_HTTP_URL = "http://127.0.0.1:39280"
+$env:KOTODAMA_HTTP_TOKEN = "十分に長いランダムなtoken"
 & "C:\Kotodama\bin\Kotodama.exe"
 ```
 
-接続先は`http://127.0.0.1:39280/mcp`です。認証・アクセス制御は未実装のため、HTTP待受はloopbackに制限されます。
+接続先は`http://127.0.0.1:39280/mcp`です。`KOTODAMA_HTTP_TOKEN`を設定した場合は、MCPクライアントから同じ値をBearer tokenとして送信します。HTTP待受は認証の有無にかかわらずloopbackに制限されます。
 
 既定のデータベースは次の場所です。
 
@@ -138,7 +139,7 @@ dotnet run --project src/Kotodama
 
 ## 現在の制約
 
-- HTTP認証、認可、TLS終端は提供しません。Streamable HTTPは信頼できる端末のloopbackで使用してください。
+- HTTPでは任意のBearer token認証を利用できます。利用者別の権限分離とTLS終端は提供しないため、信頼できる端末のloopbackで使用してください。
 
 ## 定期dream・バックアップ・ログ
 

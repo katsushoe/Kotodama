@@ -16,7 +16,7 @@ Claude Codeでは`~/.claude/settings.json`の`UserPromptSubmit`と`Stop`に`--in
 
 Codexでは`~/.codex/hooks.json`の`UserPromptSubmit`と`Stop`に`--integration-id kotodama`を含むHookがあることを確認します。初回の信頼確認で内容を確認して許可してください。`kotodama unconfigure codex`はKotodama固有HookとMCP接続だけを削除します。
 
-MSI版のStreamable HTTP接続先は`http://127.0.0.1:39280/mcp`です。ログオン時に`Kotodama MCP Server` Scheduled Taskがウィンドウを表示せず起動します。認証未実装のためloopback以外へ転送・公開しないでください。
+MSI版のStreamable HTTP接続先は`http://127.0.0.1:39280/mcp`です。ログオン時に`Kotodama MCP Server` Scheduled Taskがウィンドウを表示せず起動します。`KOTODAMA_HTTP_TOKEN`設定時はBearer認証が必須です。認証の有無にかかわらずloopback以外へ転送・公開しないでください。
 
 ## dream運用
 

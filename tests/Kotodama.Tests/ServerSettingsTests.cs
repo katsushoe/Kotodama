@@ -14,7 +14,7 @@ public sealed class ServerSettingsTests
     {
         var settings = ServerSettings.Parse(value, null);
 
-        settings.Should().Be(new ServerSettings(McpTransport.Stdio, null));
+        settings.Should().Be(new ServerSettings(McpTransport.Stdio, null, null));
     }
 
     [Fact]
@@ -22,7 +22,15 @@ public sealed class ServerSettingsTests
     {
         var settings = ServerSettings.Parse("http", "http://127.0.0.1:3456");
 
-        settings.Should().Be(new ServerSettings(McpTransport.Http, new Uri("http://127.0.0.1:3456")));
+        settings.Should().Be(new ServerSettings(McpTransport.Http, new Uri("http://127.0.0.1:3456"), null));
+    }
+
+    [Fact]
+    public void Parse_WhenHttpTokenIsConfigured_PreservesToken()
+    {
+        var settings = ServerSettings.Parse("http", "http://127.0.0.1:3456", "secret-token");
+
+        settings.HttpToken.Should().Be("secret-token");
     }
 
     [Theory]

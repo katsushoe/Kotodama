@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Net;
+using System.Net.Http.Json;
 using System.Net.Sockets;
 using System.Text.Json;
 using FluentAssertions;
@@ -12,7 +13,9 @@ namespace Kotodama.Tests;
 
 public sealed class McpHttpTests : IAsyncLifetime
 {
+    private const string HttpToken = "integration-test-token";
     private readonly string _databasePath = Path.Combine(Path.GetTempPath(), $"kotodama-http-{Guid.NewGuid():N}.db");
+    private Uri _endpoint = null!;
     private McpClient _client = null!;
     private Process _server = null!;
 
@@ -29,8 +32,10 @@ public sealed class McpHttpTests : IAsyncLifetime
         startInfo.Environment["KOTODAMA_DREAM_TEMP_STORE"] = "Memory";
         startInfo.Environment["KOTODAMA_TRANSPORT"] = "http";
         startInfo.Environment["KOTODAMA_HTTP_URL"] = $"http://127.0.0.1:{port}";
+        startInfo.Environment["KOTODAMA_HTTP_TOKEN"] = HttpToken;
         _server = Process.Start(startInfo) ?? throw new InvalidOperationException("Kotodama HTTP test server could not start.");
-        _client = await ConnectAsync(new Uri($"http://127.0.0.1:{port}{ServerSettings.HttpPath}"));
+        _endpoint = new Uri($"http://127.0.0.1:{port}{ServerSettings.HttpPath}");
+        _client = await ConnectAsync(_endpoint, HttpToken);
     }
 
     public async Task DisposeAsync()
@@ -44,7 +49,7 @@ public sealed class McpHttpTests : IAsyncLifetime
 
         _server?.Dispose();
         Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
-        await DeleteDatabaseFilesAsync();
+        await DeleteDatabaseFilesAsync(_databasePath);
     }
 
     [Fact]
@@ -85,19 +90,81 @@ public sealed class McpHttpTests : IAsyncLifetime
         GetResponseJson(result).Should().Contain("rejected");
     }
 
-    private static async Task<McpClient> ConnectAsync(Uri endpoint)
+    [Theory]
+    [InlineData(null)]
+    [InlineData("Bearer wrong-token")]
+    public async Task McpEndpoint_WhenBearerTokenIsInvalid_ReturnsUnauthorized(string? authorization)
+    {
+        using var client = new HttpClient();
+        using var request = new HttpRequestMessage(HttpMethod.Post, _endpoint)
+        {
+            Content = JsonContent.Create(new { jsonrpc = "2.0", id = 1, method = "initialize", @params = new { } }),
+        };
+        if (authorization is not null) request.Headers.TryAddWithoutValidation("Authorization", authorization);
+
+        using var response = await client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        response.Headers.WwwAuthenticate.Should().ContainSingle(value => value.Scheme == "Bearer");
+    }
+
+    [Fact]
+    public async Task McpEndpoint_WhenBearerTokenIsNotConfigured_AllowsLoopbackClient()
+    {
+        var port = GetAvailablePort();
+        var databasePath = Path.Combine(Path.GetTempPath(), $"kotodama-http-no-auth-{Guid.NewGuid():N}.db");
+        var serverAssembly = typeof(KnowledgeStore).Assembly.Location;
+        var startInfo = new ProcessStartInfo("dotnet", $"\"{serverAssembly}\"")
+        {
+            UseShellExecute = false,
+            WorkingDirectory = Path.GetDirectoryName(serverAssembly),
+        };
+        startInfo.Environment["KOTODAMA_DB"] = databasePath;
+        startInfo.Environment["KOTODAMA_TRANSPORT"] = "http";
+        startInfo.Environment["KOTODAMA_HTTP_URL"] = $"http://127.0.0.1:{port}";
+        using var server = Process.Start(startInfo) ?? throw new InvalidOperationException("Kotodama HTTP test server could not start.");
+
+        try
+        {
+            await using var client = await ConnectAsync(new Uri($"http://127.0.0.1:{port}{ServerSettings.HttpPath}"), null);
+
+            client.ServerCapabilities.Tools.Should().NotBeNull();
+        }
+        finally
+        {
+            if (!server.HasExited)
+            {
+                server.Kill(true);
+                await server.WaitForExitAsync();
+            }
+
+            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+            await DeleteDatabaseFilesAsync(databasePath);
+        }
+    }
+
+    private static async Task<McpClient> ConnectAsync(Uri endpoint, string? httpToken)
     {
         Exception? lastException = null;
         for (var attempt = 0; attempt < 20; attempt++)
         {
             try
             {
-                var transport = new HttpClientTransport(new()
+                var options = new HttpClientTransportOptions
                 {
                     Endpoint = endpoint,
                     TransportMode = HttpTransportMode.StreamableHttp,
                     ConnectionTimeout = TimeSpan.FromSeconds(5),
-                });
+                };
+                if (httpToken is not null)
+                {
+                    options.AdditionalHeaders = new Dictionary<string, string>
+                    {
+                        ["Authorization"] = $"Bearer {httpToken}",
+                    };
+                }
+
+                var transport = new HttpClientTransport(options);
                 return await McpClient.CreateAsync(transport, cancellationToken: CancellationToken.None);
             }
             catch (Exception exception) when (exception is HttpRequestException or McpException)
@@ -123,9 +190,9 @@ public sealed class McpHttpTests : IAsyncLifetime
         return result.Content.OfType<TextContentBlock>().Single().Text;
     }
 
-    private async Task DeleteDatabaseFilesAsync()
+    private static async Task DeleteDatabaseFilesAsync(string databasePath)
     {
-        foreach (var path in new[] { _databasePath, _databasePath + "-wal", _databasePath + "-shm" })
+        foreach (var path in new[] { databasePath, databasePath + "-wal", databasePath + "-shm" })
         {
             for (var attempt = 0; attempt < 20; attempt++)
             {
