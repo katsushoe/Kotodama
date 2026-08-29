@@ -8,10 +8,13 @@ Kotodamaの設定は環境変数で指定します。設定ファイルの自動
 |---|---|---|---|
 | `KOTODAMA_DB` | SQLite DBの絶対または相対パス | 配置により決定 | Knowledge Graphの永続化先 |
 | `KOTODAMA_DREAM_TEMP_STORE` | `Default`、`Memory`、`File` | `Default` | dream一時テーブルのSQLite格納方式 |
+| `KOTODAMA_DREAM_INTERVAL_SECONDS` | 1以上の整数 | `3600` | HTTP常駐時のdream実行間隔（秒） |
 | `KOTODAMA_TRANSPORT` | `stdio`、`http` | `stdio` | MCP Transport |
 | `KOTODAMA_HTTP_URL` | loopbackの絶対HTTP／HTTPS URL | なし | HTTPモードの待受URL。HTTPモードでは必須 |
 
 `KOTODAMA_DREAM_TEMP_STORE`は大文字小文字を区別しません。不明な値はエラーにせず`Default`として扱います。
+
+`KOTODAMA_DREAM_INTERVAL_SECONDS`が未設定、不正、0以下の場合は3600秒です。stdioモードでは定期dreamを起動しません。
 
 `KOTODAMA_TRANSPORT`は大文字小文字を区別しません。不明な値、HTTPモードでのURL未指定、loopback以外のhost、URL内のpath・query・fragment・userinfoは起動エラーです。MCP endpointは指定URLの`/mcp`です。認証とアクセス制御がないため、loopback以外には公開できません。
 
@@ -30,6 +33,7 @@ MSI版では2番目が適用され、`C:\Kotodama\data\kotodama.db`になりま�
 ```powershell
 $env:KOTODAMA_DB = "D:\KotodamaData\kotodama.db"
 $env:KOTODAMA_DREAM_TEMP_STORE = "Memory"
+$env:KOTODAMA_DREAM_INTERVAL_SECONDS = "3600"
 & "C:\Kotodama\bin\Kotodama.exe"
 ```
 

@@ -1,6 +1,13 @@
 # MCP Tool仕様
 
-Kotodamaはstdio Transportで13個のToolを提供します。プロパティ名はJSONではcamelCaseを使用します。
+Kotodamaはstdio／Streamable HTTP Transportで17個のToolを提供します。プロパティ名はJSONではcamelCaseを使用します。
+
+## 管理操作
+
+- `reactivate_claim`: 撤回またはstaleのClaimをactiveへ戻し、再確認日時を更新します。
+- `delete_claim`: Claimを物理削除します。取り消せません。
+- `update_relation_type`: RelationTypeの名称、カテゴリ、鮮度規則等を更新します。方向性は変更しません。
+- `delete_relation_type`: 未使用のRelationTypeを物理削除します。使用中は`in_use`を返します。
 
 ## Server InstructionsとPrompt
 

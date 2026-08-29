@@ -26,4 +26,14 @@ internal static class ApplicationPaths
 
         return Path.Combine(baseDirectory, "kotodama.db");
     }
+
+    /// <summary>配置構成に応じたログディレクトリを返します。</summary>
+    public static string GetLogDirectory(string baseDirectory)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(baseDirectory);
+        var parent = Directory.GetParent(Path.TrimEndingDirectorySeparator(baseDirectory));
+        return parent is not null && Directory.Exists(Path.Combine(parent.FullName, "logs"))
+            ? Path.Combine(parent.FullName, "logs")
+            : Path.Combine(baseDirectory, "logs");
+    }
 }

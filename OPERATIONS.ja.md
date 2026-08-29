@@ -1,8 +1,16 @@
 # 運用手順
 
+## バックアップ
+
+```powershell
+kotodama backup "D:\KotodamaBackup\kotodama.db"
+```
+
+稼働中のDBから整合したSQLiteバックアップを作成します。
+
 ## 稼働確認
 
-MCP接続を初期化し、`get_version`が`Kotodama`と`0.8.0`を返すことを確認します。プロセスの存在確認だけでは正常性を保証しません。
+MCP接続を初期化し、`get_version`が`Kotodama`と`0.9.0`を返すことを確認します。プロセスの存在確認だけでは正常性を保証しません。
 
 Claude Codeでは`~/.claude/settings.json`の`UserPromptSubmit`と`Stop`に`--integration-id kotodama`を含むHookがあることを確認します。`kotodama configure claude`はMCP接続とHooksを登録し、`kotodama unconfigure claude`はKotodama固有設定だけを削除します。
 
@@ -12,7 +20,7 @@ MSI版のStreamable HTTP接続先は`http://127.0.0.1:39280/mcp`です。ログ�
 
 ## dream運用
 
-鮮度管理を使用する場合は、RelationTypeへ`freshnessPolicy`と`refreshAfterSeconds`を設定し、外部スケジューラーから`run_dream`を定期実行します。最短の更新間隔より十分短く、DB負荷を許容できる周期を選択してください。
+鮮度管理を使用する場合は、RelationTypeへ`freshnessPolicy`と`refreshAfterSeconds`を設定します。HTTP常駐プロセスがdreamを定期実行し、間隔は`KOTODAMA_DREAM_INTERVAL_SECONDS`（既定3600秒）で設定します。
 
 `examined`は評価対象数、`markedStale`は実更新数です。並行更新や別dreamとの競合により、`examined`より`markedStale`が少ないことは正常です。
 
@@ -38,7 +46,7 @@ MSI UpgradeおよびUninstallは、利用者が作成した非空の`data`、`co
 |---|---|
 | `unable to open database file` | DB親ディレクトリの存在と書き込み権限、`KOTODAMA_DB` |
 | 起動直後に終了コード1 | 標準エラー出力、DBパス、SQLiteファイル、ディスク空き容量 |
-| Toolが見つからない | MCP初期化結果と13個のTool一覧、接続先実行ファイル |
+| Toolが見つからない | MCP初期化結果と17個のTool一覧、接続先実行ファイル |
 | Claimが検索されない | `includeRetracted`、`validAt`、Entity ID、RelationType名 |
 | dreamで更新されない | Claim状態、freshness policy、refresh秒、基準日時、並行更新 |
 | `markedStale`が0 | 期限未到来、既にstale、退避後の更新、他dreamによる先行更新 |
