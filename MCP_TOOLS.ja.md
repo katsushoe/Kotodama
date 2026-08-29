@@ -67,7 +67,7 @@ Promptは利用者またはクライアントが選択して使用します。Se
 }
 ```
 
-`kind`は`Directed`または`Symmetric`、`freshnessPolicy`は`Permanent`、`Periodic`、`Volatile`です。`Periodic`と`Volatile`の動作差はv0.1ではなく、どちらも`refreshAfterSeconds`によりdream対象になります。
+`kind`は`Directed`または`Symmetric`、`freshnessPolicy`は`Permanent`、`Periodic`、`Volatile`です。`Periodic`と`Volatile`は、どちらも`refreshAfterSeconds`によりdream対象となり、現在の動作に差はありません。
 
 ### propose_claim
 

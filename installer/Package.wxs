@@ -6,7 +6,9 @@
     UpgradeCode="5D5177C6-B6D1-49D5-B2D8-34E814449272"
     Scope="perMachine">
     <Property Id="ROOTDRIVE" Value="C:\" />
-    <MajorUpgrade DowngradeErrorMessage="A newer version of Kotodama is already installed." />
+    <MajorUpgrade
+      DowngradeErrorMessage="A newer version of Kotodama is already installed."
+      Schedule="afterInstallExecute" />
     <MediaTemplate EmbedCab="yes" />
 
     <CustomAction

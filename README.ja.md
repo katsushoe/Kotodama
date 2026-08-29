@@ -57,23 +57,23 @@ Claimは明示的な撤回で`active -> retracted`、`dream`で`active -> stale`
 
 ## MSIインストーラーを使う場合
 
-[Kotodama-0.2.0-x64.msi](https://github.com/katsushoe/Kotodama/releases/download/v0.2.0/Kotodama-0.2.0-x64.msi)をダウンロードし、SHA-256を照合してから管理者権限で実行します。
+[Kotodama-0.10.0-x64.msi](https://github.com/katsushoe/Kotodama/releases/download/v0.10.0/Kotodama-0.10.0-x64.msi)をダウンロードし、SHA-256を照合してから管理者権限で実行します。
 
 ```powershell
-Get-FileHash .\Kotodama-0.2.0-x64.msi -Algorithm SHA256
+Get-FileHash .\Kotodama-0.10.0-x64.msi -Algorithm SHA256
 Start-Process msiexec.exe -Verb RunAs -Wait `
-  -ArgumentList '/i "Kotodama-0.2.0-x64.msi" /norestart'
+  -ArgumentList '/i "Kotodama-0.10.0-x64.msi" /norestart'
 ```
 
 インストール先は`C:\Kotodama`です。Windowsのインストール済みアプリへ登録され、UpgradeとUninstallに対応します。
 
 ## ZIP配布を使う場合
 
-[Kotodama-0.2.0-win-x64.zip](https://github.com/katsushoe/Kotodama/releases/download/v0.2.0/Kotodama-0.2.0-win-x64.zip)をダウンロードし、書き込み可能な任意の場所へ展開します。
+[Kotodama-0.10.0-win-x64.zip](https://github.com/katsushoe/Kotodama/releases/download/v0.10.0/Kotodama-0.10.0-win-x64.zip)をダウンロードし、書き込み可能な任意の場所へ展開します。
 
 ```powershell
-Get-FileHash .\Kotodama-0.2.0-win-x64.zip -Algorithm SHA256
-Expand-Archive .\Kotodama-0.2.0-win-x64.zip -DestinationPath C:\Tools
+Get-FileHash .\Kotodama-0.10.0-win-x64.zip -Algorithm SHA256
+Expand-Archive .\Kotodama-0.10.0-win-x64.zip -DestinationPath C:\Tools
 & C:\Tools\Kotodama\bin\Kotodama.exe
 ```
 
@@ -86,7 +86,7 @@ ZIPは自己完結型で、別途.NET Runtimeを必要としません。Windows�
 ```powershell
 git clone https://github.com/katsushoe/Kotodama.git
 Set-Location Kotodama
-git checkout v0.2.0
+git checkout v0.10.0
 dotnet restore Kotodama.slnx
 dotnet build Kotodama.slnx -c Release --no-restore
 New-Item -ItemType Directory -Force data | Out-Null
@@ -109,10 +109,11 @@ Streamable HTTPで起動する場合は次のように設定します。
 ```powershell
 $env:KOTODAMA_TRANSPORT = "http"
 $env:KOTODAMA_HTTP_URL = "http://127.0.0.1:39280"
+$env:KOTODAMA_HTTP_TOKEN = "十分に長いランダムなtoken"
 & "C:\Kotodama\bin\Kotodama.exe"
 ```
 
-接続先は`http://127.0.0.1:39280/mcp`です。認証・アクセス制御は未実装のため、HTTP待受はloopbackに制限されます。
+接続先は`http://127.0.0.1:39280/mcp`です。`KOTODAMA_HTTP_TOKEN`を設定した場合は、MCPクライアントから同じ値をBearer tokenとして送信します。HTTP待受は認証の有無にかかわらずloopbackに制限されます。
 
 既定のデータベースは次の場所です。
 
@@ -138,7 +139,7 @@ dotnet run --project src/Kotodama
 
 ## 現在の制約
 
-- HTTP認証、認可、TLS終端は提供しません。Streamable HTTPは信頼できる端末のloopbackで使用してください。
+- HTTPでは任意のBearer token認証を利用できます。利用者別の権限分離とTLS終端は提供しないため、信頼できる端末のloopbackで使用してください。
 
 ## 定期dream・バックアップ・ログ
 

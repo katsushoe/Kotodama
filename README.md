@@ -64,10 +64,11 @@ To run the stateless Streamable HTTP transport on loopback:
 ```powershell
 $env:KOTODAMA_TRANSPORT = "http"
 $env:KOTODAMA_HTTP_URL = "http://127.0.0.1:39280"
+$env:KOTODAMA_HTTP_TOKEN = "a sufficiently long random token"
 dotnet run --project src/Kotodama
 ```
 
-Connect the MCP client to `http://127.0.0.1:39280/mcp`. HTTP mode is restricted to loopback because authentication and authorization are not yet provided. See [configuration](CONFIG.ja.md) and [ADR-0001](ADR-0001-STREAMABLE-HTTP.ja.md).
+Connect the MCP client to `http://127.0.0.1:39280/mcp`. When `KOTODAMA_HTTP_TOKEN` is set, the client must send the same value as a Bearer token. HTTP mode remains restricted to loopback and does not provide per-user authorization. See [configuration](CONFIG.ja.md) and [ADR-0001](ADR-0001-STREAMABLE-HTTP.ja.md).
 
 ## MCP tools
 
@@ -75,18 +76,18 @@ Connect the MCP client to `http://127.0.0.1:39280/mcp`. HTTP mode is restricted 
 
 Administrative tools also support claim reactivation and explicit physical deletion, plus RelationType update and deletion. RelationTypes that are still referenced are not deleted. In HTTP mode, dream runs periodically (3600 seconds by default), daily logs are written under the deployment `logs` directory, and `kotodama backup <destination.db>` creates an online SQLite backup.
 
-The v0.1 storage model preserves conflicting positive and negative claims, distinguishes Source from knowledge subject, normalizes symmetric edges, supports temporal querying, and marks expired currentness as `stale` without changing confidence.
+The storage model preserves conflicting positive and negative claims, distinguishes Source from knowledge subject, normalizes symmetric edges, supports temporal querying, and marks expired currentness as `stale` without changing confidence.
 
 ## Installation
 
 ### MSI installer
 
-Download [Kotodama-0.2.0-x64.msi](https://github.com/katsushoe/Kotodama/releases/download/v0.2.0/Kotodama-0.2.0-x64.msi), verify its SHA-256, and run it with administrator privileges:
+Download [Kotodama-0.10.0-x64.msi](https://github.com/katsushoe/Kotodama/releases/download/v0.10.0/Kotodama-0.10.0-x64.msi), verify its SHA-256, and run it with administrator privileges:
 
 ```powershell
-Get-FileHash .\Kotodama-0.2.0-x64.msi -Algorithm SHA256
+Get-FileHash .\Kotodama-0.10.0-x64.msi -Algorithm SHA256
 Start-Process msiexec.exe -Verb RunAs -Wait `
-  -ArgumentList '/i "Kotodama-0.2.0-x64.msi" /norestart'
+  -ArgumentList '/i "Kotodama-0.10.0-x64.msi" /norestart'
 ```
 
 The x64 MSI installs Kotodama under `C:\Kotodama`:
@@ -100,11 +101,11 @@ Configuration, databases, and logs are not included in the MSI. Non-empty data d
 
 ### Portable ZIP
 
-Download [Kotodama-0.2.0-win-x64.zip](https://github.com/katsushoe/Kotodama/releases/download/v0.2.0/Kotodama-0.2.0-win-x64.zip), verify its SHA-256, and extract it to a writable directory:
+Download [Kotodama-0.10.0-win-x64.zip](https://github.com/katsushoe/Kotodama/releases/download/v0.10.0/Kotodama-0.10.0-win-x64.zip), verify its SHA-256, and extract it to a writable directory:
 
 ```powershell
-Get-FileHash .\Kotodama-0.2.0-win-x64.zip -Algorithm SHA256
-Expand-Archive .\Kotodama-0.2.0-win-x64.zip -DestinationPath C:\Tools
+Get-FileHash .\Kotodama-0.10.0-win-x64.zip -Algorithm SHA256
+Expand-Archive .\Kotodama-0.10.0-win-x64.zip -DestinationPath C:\Tools
 & C:\Tools\Kotodama\bin\Kotodama.exe
 ```
 
@@ -117,7 +118,7 @@ Install the .NET 10 SDK, then clone and build the source:
 ```powershell
 git clone https://github.com/katsushoe/Kotodama.git
 Set-Location Kotodama
-git checkout v0.2.0
+git checkout v0.10.0
 dotnet restore Kotodama.slnx
 dotnet build Kotodama.slnx -c Release --no-restore
 $env:KOTODAMA_DB = (Join-Path $PWD 'data\kotodama.db')
