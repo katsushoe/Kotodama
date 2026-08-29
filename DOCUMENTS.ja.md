@@ -2,7 +2,7 @@
 
 | 文書 | 内容 |
 |---|---|
-| [README.ja.md](README.ja.md) | 製品概要、起動方法、v0.1制約 |
+| [README.ja.md](README.ja.md) | 製品概要、起動方法、現在の制約 |
 | [CONFIG.ja.md](CONFIG.ja.md) | 環境変数、既定値、パス解決 |
 | [MCP_TOOLS.ja.md](MCP_TOOLS.ja.md) | 17個のMCP Tool、入力、出力、エラー |
 | [KNOWLEDGE_MODEL.ja.md](KNOWLEDGE_MODEL.ja.md) | Entity、Relation、Claim、Source、Event、状態遷移 |
