@@ -6,7 +6,7 @@
 kotodama backup "D:\KotodamaBackup\kotodama.db"
 ```
 
-稼働中のDBから整合したSQLiteバックアップを作成します。
+稼働中のDBからSQLite Online Backup APIで整合した単一DBファイルを作成します。出力先の親ディレクトリが存在しない場合は自動作成します。バックアップ中にKotodamaを停止する必要はありません。
 
 ## 稼働確認
 
@@ -24,15 +24,11 @@ MSI版のStreamable HTTP接続先は`http://127.0.0.1:39280/mcp`です。ログ�
 
 `examined`は評価対象数、`markedStale`は実更新数です。並行更新や別dreamとの競合により、`examined`より`markedStale`が少ないことは正常です。
 
-## バックアップ
-
-v0.1にバックアップCLIはありません。Kotodamaプロセスを停止したうえで、DB本体と存在する場合は`-wal`、`-shm`を同一時点の組としてバックアップしてください。稼働中バックアップが必要な場合はSQLite Online Backup API対応を将来機能として実装してください。
-
 ## 復旧
 
 1. Kotodamaを停止します。
 2. 現在のDB関連ファイルを別の退避先へコピーします。
-3. バックアップ一式を設定されたDBパスへ復元します。
+3. `kotodama backup`で作成したDBファイルを設定されたDBパスへ復元します。
 4. Kotodamaを起動し、`get_version`、`get_entity`、`query_claims`で確認します。
 5. 必要な場合だけ`run_dream`を実行します。
 
