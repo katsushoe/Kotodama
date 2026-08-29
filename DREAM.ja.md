@@ -40,6 +40,6 @@ SQLiteではテーブル自体をオンラインテーブルと物理交換す�
 
 ## 実行方法
 
-MCP Toolの`run_dream`を呼び出します。戻り値は評価対象件数`examined`、実際にstaleへ変更した件数`markedStale`、評価日時`evaluatedAt`です。
+HTTP常駐モードでは、ホスト内のBackground Serviceが`KOTODAMA_DREAM_INTERVAL_SECONDS`（既定3600秒）ごとに実行します。不正値または0以下は既定値として扱います。stdioモードでは自動実行しません。
 
-v0.1は自動スケジュールを提供しません。MCPクライアント、Windows Scheduled Task等の外部実行基盤から定期的に呼び出してください。同時実行は安全ですが、不要な競合を避けるため単一スケジュールを推奨します。
+任意の時点でMCP Toolの`run_dream`を呼び出して手動実行できます。戻り値は評価対象件数`examined`、実際にstaleへ変更した件数`markedStale`、評価日時`evaluatedAt`です。同時実行は安全ですが、不要な競合を避けるため、定期実行元はHTTP常駐ホストだけにすることを推奨します。
