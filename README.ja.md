@@ -53,7 +53,7 @@ Claimは明示的な撤回で`active -> retracted`、`dream`で`active -> stale`
 - 情報が存在しない場合はfalseと断定せず、空の検索結果をunknownとして扱います。
 - Claimの有効期間、観測日時、最終確認日時、鮮度状態を保持します。
 - dreamは期限切れのClaimを否定せず、`active`から`stale`へ変更します。
-- stdioとStreamable HTTPによるMCPサーバーとして13個のToolを提供します。
+- stdioとStreamable HTTPによるMCPサーバーとして17個のToolを提供します。
 
 ## MSIインストーラーを使う場合
 
@@ -139,6 +139,10 @@ dotnet run --project src/Kotodama
 ## 現在の制約
 
 - HTTP認証、認可、TLS終端は提供しません。Streamable HTTPは信頼できる端末のloopbackで使用してください。
-- MSI版はHTTPサーバーをScheduled Taskで常駐させますが、dream自体の定期実行は未実装です。`run_dream`を外部スケジューラーまたはMCPクライアントから定期実行してください。
-- RelationTypeの編集・削除、Claimの再有効化、データの物理削除、バックアップCLIは未実装です。
-- ログは標準エラー出力へ送られます。MSIの`logs`ディレクトリへ自動保存する機能は未実装です。
+
+## 定期dream・バックアップ・ログ
+
+- HTTP常駐時はdreamを既定3600秒間隔で実行します。`KOTODAMA_DREAM_INTERVAL_SECONDS`で変更できます。
+- `kotodama backup <出力先.db>`でSQLiteオンラインバックアップを作成できます。
+- MSI版のログは`C:\Kotodama\logs\kotodama-YYYYMMDD.log`へ日別保存します。
+- Claim物理削除とRelationType削除は取り消せません。RelationTypeは使用中の場合、削除を拒否します。

@@ -125,6 +125,81 @@ public sealed class KnowledgeStore
         return count == 1 ? new(true, "retracted", Id: claimId) : new(false, "not_found", "active claim not found");
     }
 
+    /// <summary>撤回またはstaleのClaimを再確認済みのactiveへ戻します。</summary>
+    public async Task<OperationResult> ReactivateClaimAsync(long claimId, DateTimeOffset? confirmedAt = null, CancellationToken cancellationToken = default)
+    {
+        var now = confirmedAt ?? Now();
+        await using var connection = await OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandText = "UPDATE claims SET status='active',last_confirmed_at=$now,updated_at=$now WHERE id=$id AND status<>'active'";
+        command.Parameters.AddWithValue("$id", claimId);
+        command.Parameters.AddWithValue("$now", Format(now));
+        var count = await command.ExecuteNonQueryAsync(cancellationToken);
+        return count == 1 ? new(true, "reactivated", Id: claimId) : new(false, "not_found", "inactive claim not found");
+    }
+
+    /// <summary>Claimを物理削除します。</summary>
+    public async Task<OperationResult> DeleteClaimAsync(long claimId, CancellationToken cancellationToken = default)
+    {
+        await using var connection = await OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandText = "DELETE FROM claims WHERE id=$id";
+        command.Parameters.AddWithValue("$id", claimId);
+        var count = await command.ExecuteNonQueryAsync(cancellationToken);
+        return count == 1 ? new(true, "deleted", Id: claimId) : new(false, "not_found", "claim not found");
+    }
+
+    /// <summary>RelationTypeを更新します。既存Relationの方向性は変更しません。</summary>
+    public async Task<OperationResult> UpdateRelationTypeAsync(long relationTypeId, RelationTypeUpdate input, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(input);
+        ArgumentException.ThrowIfNullOrWhiteSpace(input.CanonicalName);
+        await using var connection = await OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandText = "UPDATE relation_types SET canonical_name=$name,category=$category,allow_strength=$strength,inverse_name=$inverse,freshness_policy=$freshness,refresh_after_seconds=$refresh,description=$description,updated_at=$now WHERE id=$id";
+        command.Parameters.AddWithValue("$id", relationTypeId);
+        command.Parameters.AddWithValue("$name", input.CanonicalName);
+        command.Parameters.AddWithValue("$category", input.Category);
+        command.Parameters.AddWithValue("$strength", input.AllowStrength ? 1 : 0);
+        command.Parameters.AddWithValue("$inverse", (object?)input.InverseName ?? DBNull.Value);
+        command.Parameters.AddWithValue("$freshness", Lower(input.FreshnessPolicy));
+        command.Parameters.AddWithValue("$refresh", (object?)input.RefreshAfterSeconds ?? DBNull.Value);
+        command.Parameters.AddWithValue("$description", (object?)input.Description ?? DBNull.Value);
+        command.Parameters.AddWithValue("$now", Format(Now()));
+        var count = await command.ExecuteNonQueryAsync(cancellationToken);
+        return count == 1 ? new(true, "updated", Id: relationTypeId) : new(false, "not_found", "relation_type not found");
+    }
+
+    /// <summary>未使用のRelationTypeを物理削除します。</summary>
+    public async Task<OperationResult> DeleteRelationTypeAsync(long relationTypeId, CancellationToken cancellationToken = default)
+    {
+        await using var connection = await OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandText = "DELETE FROM relation_types WHERE id=$id AND NOT EXISTS(SELECT 1 FROM relations WHERE relation_type_id=$id)";
+        command.Parameters.AddWithValue("$id", relationTypeId);
+        var count = await command.ExecuteNonQueryAsync(cancellationToken);
+        if (count == 1) return new(true, "deleted", Id: relationTypeId);
+        await using var exists = connection.CreateCommand();
+        exists.CommandText = "SELECT EXISTS(SELECT 1 FROM relation_types WHERE id=$id)";
+        exists.Parameters.AddWithValue("$id", relationTypeId);
+        return Convert.ToInt32(await exists.ExecuteScalarAsync(cancellationToken), CultureInfo.InvariantCulture) == 1
+            ? new(false, "in_use", "relation_type has relations")
+            : new(false, "not_found", "relation_type not found");
+    }
+
+    /// <summary>SQLiteオンラインバックアップを指定ファイルへ作成します。</summary>
+    public async Task BackupAsync(string destinationPath, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(destinationPath);
+        var fullPath = Path.GetFullPath(destinationPath);
+        Directory.CreateDirectory(Path.GetDirectoryName(fullPath) ?? throw new ArgumentException("backup directory is required", nameof(destinationPath)));
+        await using var source = await OpenAsync(cancellationToken);
+        var targetString = new SqliteConnectionStringBuilder { DataSource = fullPath }.ToString();
+        await using var target = new SqliteConnection(targetString);
+        await target.OpenAsync(cancellationToken);
+        source.BackupDatabase(target);
+    }
+
     /// <summary>Entity を取得します。</summary>
     public async Task<EntityRecord?> GetEntityAsync(long id, CancellationToken cancellationToken = default)
     {

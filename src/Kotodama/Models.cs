@@ -28,6 +28,9 @@ public sealed record EntityInput(string CanonicalName, string ClassName = "Entit
 /// <summary>RelationType の登録要求です。</summary>
 public sealed record RelationTypeInput(string CanonicalName, string Category, RelationKind Kind, bool AllowStrength = false, string? InverseName = null, FreshnessPolicy FreshnessPolicy = FreshnessPolicy.Permanent, long? RefreshAfterSeconds = null, string? Description = null);
 
+/// <summary>RelationType の更新要求です。</summary>
+public sealed record RelationTypeUpdate(string CanonicalName, string Category, bool AllowStrength = false, string? InverseName = null, FreshnessPolicy FreshnessPolicy = FreshnessPolicy.Permanent, long? RefreshAfterSeconds = null, string? Description = null);
+
 /// <summary>Source の登録要求です。</summary>
 public sealed record SourceInput(string SourceType, string? Uri = null, string? ExternalId = null, string? Title = null, long? AuthorEntityId = null, double? Reliability = null, string? Metadata = null);
 

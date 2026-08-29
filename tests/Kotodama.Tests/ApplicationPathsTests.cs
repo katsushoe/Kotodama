@@ -31,6 +31,17 @@ public sealed class ApplicationPathsTests : IDisposable
         result.Should().Be(Path.Combine(binDirectory, "kotodama.db"));
     }
 
+    [Fact]
+    public void GetLogDirectory_WhenInstalledLogsExists_ReturnsSiblingDirectory()
+    {
+        var binDirectory = Path.Combine(_root, "bin");
+        var logsDirectory = Path.Combine(_root, "logs");
+        Directory.CreateDirectory(binDirectory);
+        Directory.CreateDirectory(logsDirectory);
+
+        ApplicationPaths.GetLogDirectory(binDirectory).Should().Be(logsDirectory);
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_root))

@@ -22,6 +22,12 @@ public sealed class KotodamaTools(KnowledgeStore store)
     [McpServerTool(Name = "retract_claim"), Description("Claimを物理削除せずretractedへ変更します。")]
     public Task<OperationResult> RetractClaim(long claimId, CancellationToken cancellationToken) => store.RetractClaimAsync(claimId, cancellationToken);
 
+    [McpServerTool(Name = "reactivate_claim"), Description("撤回またはstaleのClaimを再確認済みのactiveへ戻します。")]
+    public Task<OperationResult> ReactivateClaim(long claimId, DateTimeOffset? confirmedAt = null, CancellationToken cancellationToken = default) => store.ReactivateClaimAsync(claimId, confirmedAt, cancellationToken);
+
+    [McpServerTool(Name = "delete_claim"), Description("指定Claimを物理削除します。取り消せません。")]
+    public Task<OperationResult> DeleteClaim(long claimId, CancellationToken cancellationToken) => store.DeleteClaimAsync(claimId, cancellationToken);
+
     [McpServerTool(Name = "query_claims"), Description("ClaimをEntity、RelationType、過去時点で検索します。空配列はunknownです。")]
     public Task<IReadOnlyList<ClaimRecord>> QueryClaims(long? entityId = null, string? relationType = null, DateTimeOffset? validAt = null, bool includeRetracted = false, CancellationToken cancellationToken = default) => store.QueryClaimsAsync(entityId, relationType, validAt, includeRetracted, cancellationToken);
 
@@ -42,6 +48,12 @@ public sealed class KotodamaTools(KnowledgeStore store)
 
     [McpServerTool(Name = "create_relation_type"), Description("RelationTypeと規則属性を登録します。")]
     public Task<long> CreateRelationType(RelationTypeInput input, CancellationToken cancellationToken) => store.CreateRelationTypeAsync(input, cancellationToken);
+
+    [McpServerTool(Name = "update_relation_type"), Description("RelationTypeの名称と規則属性を更新します。")]
+    public Task<OperationResult> UpdateRelationType(long relationTypeId, RelationTypeUpdate input, CancellationToken cancellationToken) => store.UpdateRelationTypeAsync(relationTypeId, input, cancellationToken);
+
+    [McpServerTool(Name = "delete_relation_type"), Description("未使用のRelationTypeを物理削除します。")]
+    public Task<OperationResult> DeleteRelationType(long relationTypeId, CancellationToken cancellationToken) => store.DeleteRelationTypeAsync(relationTypeId, cancellationToken);
 
     [McpServerTool(Name = "create_event"), Description("actor/occurred_at/action/objectを持つEventを登録します。合成はcontains/part_of Relationで表現します。")]
     public Task<EventRecord> CreateEvent(EventInput input, CancellationToken cancellationToken) => store.CreateEventAsync(input, cancellationToken);

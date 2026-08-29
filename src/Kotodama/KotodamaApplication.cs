@@ -51,6 +51,11 @@ internal static class KotodamaApplication
             return ClaudeHookCommand.RunAsync(args[1], args[2], Console.In, Console.Out);
         }
 
+        if (args.Length == 2 && args[0].Equals("backup", StringComparison.OrdinalIgnoreCase))
+        {
+            return BackupAsync(args[1]);
+        }
+
         var settings = args.Contains("--http", StringComparer.OrdinalIgnoreCase)
             ? ServerSettings.Parse("http", ServerSettings.DefaultHttpUrl)
             : ServerSettings.FromEnvironment();
@@ -62,6 +67,7 @@ internal static class KotodamaApplication
         var builder = Host.CreateApplicationBuilder(args);
         ConfigureLogging(builder.Logging);
         AddCoreServices(builder.Services);
+        builder.Services.AddHostedService<DreamWorker>();
         AddMcpPrimitives(builder.Services.AddMcpServer().WithStdioServerTransport());
 
         using var host = builder.Build();
@@ -99,8 +105,21 @@ internal static class KotodamaApplication
     private static void AddMcpPrimitives(IMcpServerBuilder builder) =>
         builder.WithTools<KotodamaTools>().WithPrompts<KotodamaPrompts>();
 
-    private static void ConfigureLogging(ILoggingBuilder logging) =>
+    private static void ConfigureLogging(ILoggingBuilder logging)
+    {
         logging.AddConsole(options => options.LogToStandardErrorThreshold = LogLevel.Trace);
+        logging.AddProvider(new DailyFileLoggerProvider(ApplicationPaths.GetLogDirectory(AppContext.BaseDirectory), TimeProvider.System));
+    }
+
+    private static async Task<int> BackupAsync(string destinationPath)
+    {
+        var databasePath = Environment.GetEnvironmentVariable("KOTODAMA_DB") ?? ApplicationPaths.GetDefaultDatabasePath(AppContext.BaseDirectory);
+        var store = new KnowledgeStore(databasePath, TimeProvider.System);
+        await store.InitializeAsync();
+        await store.BackupAsync(destinationPath);
+        Console.WriteLine(Path.GetFullPath(destinationPath));
+        return 0;
+    }
 
     private static Task InitializeStoreAsync(IServiceProvider services) =>
         services.GetRequiredService<KnowledgeStore>().InitializeAsync();

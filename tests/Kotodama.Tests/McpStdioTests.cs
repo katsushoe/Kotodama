@@ -73,9 +73,9 @@ public sealed class McpStdioTests : IAsyncLifetime
         var tools = await _client.ListToolsAsync(cancellationToken: CancellationToken.None);
 
         tools.Select(x => x.Name).Should().BeEquivalentTo(
-            "get_version", "get_entity", "search_entities", "propose_claim", "retract_claim",
+            "get_version", "get_entity", "search_entities", "propose_claim", "retract_claim", "reactivate_claim", "delete_claim",
             "query_claims", "query_relations", "get_neighbors", "get_knowledge_context",
-            "run_dream", "create_entity", "create_relation_type", "create_event");
+            "run_dream", "create_entity", "create_relation_type", "update_relation_type", "delete_relation_type", "create_event");
     }
 
     [Fact]
