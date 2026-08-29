@@ -28,9 +28,9 @@ dotnet publish src/Kotodama/Kotodama.csproj `
 $publishDir = (Resolve-Path artifacts/publish/win-x64).Path
 .tools/wix build installer/Package.wxs `
   -arch x64 `
-  -d ProductVersion=0.8.0 `
+  -d ProductVersion=0.9.0 `
   -d PublishDir=$publishDir `
-  -o artifacts/release/Kotodama-0.8.0-x64.msi
+  -o artifacts/release/Kotodama-0.9.0-x64.msi
 ```
 
 ## リリース完了条件
