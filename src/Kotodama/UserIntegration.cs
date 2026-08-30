@@ -34,6 +34,7 @@ internal static class UserIntegration
             await RunRequiredAsync("schtasks.exe", BuildCreateTaskArguments(executablePath), cancellationToken);
             CodexConfig.Update(GetCodexConfigPath(), McpUrl);
             CodexHookConfig.Update(GetCodexHooksPath(), executablePath);
+            CodexAgentConfig.Update(GetCodexAgentPath(), GetCodexAgentTemplatePath(baseDirectory));
             await RunRequiredAsync("schtasks.exe", ["/Run", "/TN", TaskName], cancellationToken);
             return 0;
         }
@@ -41,6 +42,7 @@ internal static class UserIntegration
         {
             CodexConfig.Remove(GetCodexConfigPath());
             CodexHookConfig.Remove(GetCodexHooksPath());
+            CodexAgentConfig.Remove(GetCodexAgentPath());
             await RunOptionalAsync("schtasks.exe", ["/Delete", "/TN", TaskName, "/F"], cancellationToken);
             throw;
         }
@@ -50,6 +52,7 @@ internal static class UserIntegration
     {
         CodexConfig.Remove(GetCodexConfigPath());
         CodexHookConfig.Remove(GetCodexHooksPath());
+        CodexAgentConfig.Remove(GetCodexAgentPath());
         await RunOptionalAsync("schtasks.exe", ["/End", "/TN", TaskName], cancellationToken);
         await RunOptionalAsync("schtasks.exe", ["/Delete", "/TN", TaskName, "/F"], cancellationToken);
         return 0;
@@ -70,6 +73,12 @@ internal static class UserIntegration
 
     internal static string GetCodexHooksPath() =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".codex", "hooks.json");
+
+    internal static string GetCodexAgentPath() =>
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".codex", "agents", CodexAgentConfig.FileName);
+
+    internal static string GetCodexAgentTemplatePath(string baseDirectory) =>
+        Path.Combine(baseDirectory, "codex", CodexAgentConfig.FileName);
 
     private static Task RunRequiredAsync(string fileName, IReadOnlyList<string> arguments, CancellationToken cancellationToken) =>
         RunAsync(fileName, arguments, true, cancellationToken);

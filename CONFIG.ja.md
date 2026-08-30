@@ -7,6 +7,7 @@ Kotodamaの設定は環境変数で指定します。設定ファイルの自動
 | 名前 | 値 | 省略時 | 内容 |
 |---|---|---|---|
 | `KOTODAMA_DB` | SQLite DBの絶対または相対パス | 配置により決定 | Knowledge Graphの永続化先 |
+| `KOTODAMA_LOG_DIR` | ログディレクトリの絶対または相対パス | 配置により決定 | 日別ログの保存先 |
 | `KOTODAMA_DREAM_TEMP_STORE` | `Default`、`Memory`、`File` | `Default` | dream一時テーブルのSQLite格納方式 |
 | `KOTODAMA_DREAM_INTERVAL_SECONDS` | 1以上の整数 | `3600` | HTTP常駐時のdream実行間隔（秒） |
 | `KOTODAMA_TRANSPORT` | `stdio`、`http` | `stdio` | MCP Transport |
@@ -26,6 +27,14 @@ Kotodamaの設定は環境変数で指定します。設定ファイルの自動
 3. それ以外は実行ファイルと同じディレクトリの`kotodama.db`を使用します。
 
 MSI版では2番目が適用され、`C:\Kotodama\data\kotodama.db`になります。
+
+## ログパスの決定順序
+
+1. `KOTODAMA_LOG_DIR`が設定されていれば、その値を使用します。
+2. 実行ファイルの1階層上に`logs`ディレクトリが存在すれば、そのディレクトリを使用します。
+3. それ以外は実行ファイルと同じディレクトリの`logs`を使用します。
+
+Claude Desktop Extensionは、利用者が指定したデータディレクトリ内の`kotodama.db`と`logs`をそれぞれ`KOTODAMA_DB`と`KOTODAMA_LOG_DIR`へ設定します。
 
 ## 設定例
 

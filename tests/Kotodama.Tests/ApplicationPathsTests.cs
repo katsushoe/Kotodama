@@ -42,6 +42,23 @@ public sealed class ApplicationPathsTests : IDisposable
         ApplicationPaths.GetLogDirectory(binDirectory).Should().Be(logsDirectory);
     }
 
+    [Fact]
+    public void GetLogDirectory_WhenEnvironmentIsConfigured_ReturnsConfiguredPath()
+    {
+        var configuredDirectory = Path.Combine(_root, "configured-logs");
+        var previousValue = Environment.GetEnvironmentVariable("KOTODAMA_LOG_DIR");
+        try
+        {
+            Environment.SetEnvironmentVariable("KOTODAMA_LOG_DIR", configuredDirectory);
+
+            ApplicationPaths.GetLogDirectory(_root).Should().Be(Path.GetFullPath(configuredDirectory));
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("KOTODAMA_LOG_DIR", previousValue);
+        }
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_root))

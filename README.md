@@ -27,6 +27,8 @@ For example, an AI can remember that a person belonged to an organization during
 
 Kotodama supplies server instructions during MCP initialization and exposes the `use_kotodama` MCP prompt. `configure claude` and `configure codex` also install client hooks that prompt knowledge retrieval before an answer and knowledge review after it. Raw transcripts are never stored; only supported, reusable structured knowledge selected by the AI is written through MCP tools.
 
+For Codex, `plugins/kotodama` provides a plugin containing the MCP connection and the `kotodama-knowledge` skill. `configure codex` also installs the user-scoped `kotodama-curator` custom agent so post-response knowledge review can run in an isolated context. The parent agent performs the same review when the custom agent is unavailable.
+
 ## Data model
 
 ```text
@@ -82,12 +84,12 @@ The storage model preserves conflicting positive and negative claims, distinguis
 
 ### MSI installer
 
-Download [Kotodama-0.10.0-x64.msi](https://github.com/katsushoe/Kotodama/releases/download/v0.10.0/Kotodama-0.10.0-x64.msi), verify its SHA-256, and run it with administrator privileges:
+Download [Kotodama-0.11.0-x64.msi](https://github.com/katsushoe/Kotodama/releases/download/v0.11.0/Kotodama-0.11.0-x64.msi), verify its SHA-256, and run it with administrator privileges:
 
 ```powershell
-Get-FileHash .\Kotodama-0.10.0-x64.msi -Algorithm SHA256
+Get-FileHash .\Kotodama-0.11.0-x64.msi -Algorithm SHA256
 Start-Process msiexec.exe -Verb RunAs -Wait `
-  -ArgumentList '/i "Kotodama-0.10.0-x64.msi" /norestart'
+  -ArgumentList '/i "Kotodama-0.11.0-x64.msi" /norestart'
 ```
 
 The x64 MSI installs Kotodama under `C:\Kotodama`:
@@ -101,15 +103,21 @@ Configuration, databases, and logs are not included in the MSI. Non-empty data d
 
 ### Portable ZIP
 
-Download [Kotodama-0.10.0-win-x64.zip](https://github.com/katsushoe/Kotodama/releases/download/v0.10.0/Kotodama-0.10.0-win-x64.zip), verify its SHA-256, and extract it to a writable directory:
+Download [Kotodama-0.11.0-win-x64.zip](https://github.com/katsushoe/Kotodama/releases/download/v0.11.0/Kotodama-0.11.0-win-x64.zip), verify its SHA-256, and extract it to a writable directory:
 
 ```powershell
-Get-FileHash .\Kotodama-0.10.0-win-x64.zip -Algorithm SHA256
-Expand-Archive .\Kotodama-0.10.0-win-x64.zip -DestinationPath C:\Tools
+Get-FileHash .\Kotodama-0.11.0-win-x64.zip -Algorithm SHA256
+Expand-Archive .\Kotodama-0.11.0-win-x64.zip -DestinationPath C:\Tools
 & C:\Tools\Kotodama\bin\Kotodama.exe
 ```
 
 The ZIP is self-contained and does not require a separately installed .NET Runtime. It does not register Kotodama with Windows, modify `PATH`, or provide automatic upgrades. Preserve the extracted `data` directory when replacing a version.
+
+### Claude Desktop Extension
+
+Download `Kotodama-<version>-win-x64.dxt`, then open Claude Desktop and select `Settings > Extensions > Advanced settings > Install Extension...`. Choose a data directory when prompted. Claude Desktop launches the bundled self-contained Kotodama binary as a stdio MCP server.
+
+The extension exposes Kotodama tools, server instructions, and the `use_kotodama` prompt. Regular Claude Desktop does not run the Claude Code hooks or subagents, so automatic capture after every response is not guaranteed. Select the `use_kotodama` prompt when explicit knowledge review is required. Removing the extension does not delete the selected data directory.
 
 ### Source distribution
 
@@ -118,7 +126,7 @@ Install the .NET 10 SDK, then clone and build the source:
 ```powershell
 git clone https://github.com/katsushoe/Kotodama.git
 Set-Location Kotodama
-git checkout v0.10.0
+git checkout v0.11.0
 dotnet restore Kotodama.slnx
 dotnet build Kotodama.slnx -c Release --no-restore
 $env:KOTODAMA_DB = (Join-Path $PWD 'data\kotodama.db')

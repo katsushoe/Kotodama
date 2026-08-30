@@ -63,6 +63,7 @@ public sealed class ClaudeHookCommandTests
         using var firstResult = JsonDocument.Parse(firstOutput.ToString());
         using var secondResult = JsonDocument.Parse(secondOutput.ToString());
         firstResult.RootElement.GetProperty("decision").GetString().Should().Be("block");
+        firstResult.RootElement.GetProperty("reason").GetString().Should().Contain("kotodama-curator");
         secondResult.RootElement.EnumerateObject().Should().BeEmpty();
     }
 }

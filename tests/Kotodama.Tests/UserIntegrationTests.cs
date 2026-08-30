@@ -28,4 +28,18 @@ public sealed class UserIntegrationTests
     {
         UserIntegration.GetCodexHooksPath().Should().EndWith(Path.Combine(".codex", "hooks.json"));
     }
+
+    [Fact]
+    public void GetCodexAgentPath_UsesUserScopedCodexAgentsDirectory()
+    {
+        UserIntegration.GetCodexAgentPath().Should().EndWith(
+            Path.Combine(".codex", "agents", "kotodama-curator.toml"));
+    }
+
+    [Fact]
+    public void GetCodexAgentTemplatePath_UsesDeploymentRelativeTemplate()
+    {
+        UserIntegration.GetCodexAgentTemplatePath(@"C:\Kotodama\bin").Should().Be(
+            Path.Combine(@"C:\Kotodama\bin", "codex", "kotodama-curator.toml"));
+    }
 }

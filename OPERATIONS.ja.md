@@ -10,7 +10,7 @@ kotodama backup "D:\KotodamaBackup\kotodama.db"
 
 ## 稼働確認
 
-MCP接続を初期化し、`get_version`が`Kotodama`と`0.10.0`を返すことを確認します。プロセスの存在確認だけでは正常性を保証しません。
+MCP接続を初期化し、`get_version`が`Kotodama`と`0.11.0`を返すことを確認します。プロセスの存在確認だけでは正常性を保証しません。
 
 Claude Codeでは`~/.claude/settings.json`の`UserPromptSubmit`と`Stop`に`--integration-id kotodama`を含むHookがあることを確認します。`kotodama configure claude`はMCP接続とHooksを登録し、`kotodama unconfigure claude`はKotodama固有設定だけを削除します。
 

@@ -1,0 +1,53 @@
+{
+  "dxt_version": "0.1",
+  "name": "kotodama",
+  "display_name": "Kotodama",
+  "version": "0.11.0",
+  "description": "Persistent structured knowledge for Claude Desktop",
+  "long_description": "Kotodama stores durable knowledge as a temporal, source-aware knowledge graph. It provides MCP tools for searching and maintaining entities, relations, claims, sources, and events, plus guidance for safe knowledge capture.",
+  "author": {
+    "name": "AkatsukiSoft"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/katsushoe/Kotodama"
+  },
+  "homepage": "https://github.com/katsushoe/Kotodama",
+  "documentation": "https://github.com/katsushoe/Kotodama/blob/develop/README.ja.md",
+  "support": "https://github.com/katsushoe/Kotodama/issues",
+  "server": {
+    "type": "binary",
+    "entry_point": "server/Kotodama.exe",
+    "mcp_config": {
+      "command": "${__dirname}/server/Kotodama.exe",
+      "args": [],
+      "env": {
+        "KOTODAMA_DB": "${user_config.data_directory}${/}kotodama.db",
+        "KOTODAMA_LOG_DIR": "${user_config.data_directory}${/}logs"
+      }
+    }
+  },
+  "tools_generated": true,
+  "prompts_generated": true,
+  "keywords": [
+    "knowledge",
+    "memory",
+    "knowledge-graph",
+    "sqlite"
+  ],
+  "license": "MIT",
+  "compatibility": {
+    "platforms": [
+      "win32"
+    ]
+  },
+  "user_config": {
+    "data_directory": {
+      "type": "directory",
+      "title": "Kotodama data directory",
+      "description": "Directory used for the SQLite database and logs.",
+      "required": true,
+      "default": "${HOME}/Kotodama"
+    }
+  }
+}
