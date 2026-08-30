@@ -59,12 +59,12 @@ Claimは明示的な撤回で`active -> retracted`、`dream`で`active -> stale`
 
 ## MSIインストーラーを使う場合
 
-[Kotodama-0.11.0-x64.msi](https://github.com/katsushoe/Kotodama/releases/download/v0.11.0/Kotodama-0.11.0-x64.msi)をダウンロードし、SHA-256を照合してから管理者権限で実行します。
+[Kotodama-0.11.1-x64.msi](https://github.com/katsushoe/Kotodama/releases/download/v0.11.1/Kotodama-0.11.1-x64.msi)をダウンロードし、SHA-256を照合してから管理者権限で実行します。
 
 ```powershell
-Get-FileHash .\Kotodama-0.11.0-x64.msi -Algorithm SHA256
+Get-FileHash .\Kotodama-0.11.1-x64.msi -Algorithm SHA256
 Start-Process msiexec.exe -Verb RunAs -Wait `
-  -ArgumentList '/i "Kotodama-0.11.0-x64.msi" /norestart'
+  -ArgumentList '/i "Kotodama-0.11.1-x64.msi" /norestart'
 ```
 
 インストール先は`C:\Kotodama`です。Windowsのインストール済みアプリへ登録され、UpgradeとUninstallに対応します。
@@ -77,11 +77,11 @@ DXTはMCP Tool、Server Instructions、`use_kotodama` Promptを提供します�
 
 ## ZIP配布を使う場合
 
-[Kotodama-0.11.0-win-x64.zip](https://github.com/katsushoe/Kotodama/releases/download/v0.11.0/Kotodama-0.11.0-win-x64.zip)をダウンロードし、書き込み可能な任意の場所へ展開します。
+[Kotodama-0.11.1-win-x64.zip](https://github.com/katsushoe/Kotodama/releases/download/v0.11.1/Kotodama-0.11.1-win-x64.zip)をダウンロードし、書き込み可能な任意の場所へ展開します。
 
 ```powershell
-Get-FileHash .\Kotodama-0.11.0-win-x64.zip -Algorithm SHA256
-Expand-Archive .\Kotodama-0.11.0-win-x64.zip -DestinationPath C:\Tools
+Get-FileHash .\Kotodama-0.11.1-win-x64.zip -Algorithm SHA256
+Expand-Archive .\Kotodama-0.11.1-win-x64.zip -DestinationPath C:\Tools
 & C:\Tools\Kotodama\bin\Kotodama.exe
 ```
 
@@ -94,7 +94,7 @@ ZIPは自己完結型で、別途.NET Runtimeを必要としません。Windows�
 ```powershell
 git clone https://github.com/katsushoe/Kotodama.git
 Set-Location Kotodama
-git checkout v0.11.0
+git checkout v0.11.1
 dotnet restore Kotodama.slnx
 dotnet build Kotodama.slnx -c Release --no-restore
 New-Item -ItemType Directory -Force data | Out-Null
