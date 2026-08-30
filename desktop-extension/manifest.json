@@ -2,7 +2,7 @@
   "dxt_version": "0.1",
   "name": "kotodama",
   "display_name": "Kotodama",
-  "version": "0.11.0",
+  "version": "0.11.1",
   "description": "Persistent structured knowledge for Claude Desktop",
   "long_description": "Kotodama stores durable knowledge as a temporal, source-aware knowledge graph. It provides MCP tools for searching and maintaining entities, relations, claims, sources, and events, plus guidance for safe knowledge capture.",
   "author": {
