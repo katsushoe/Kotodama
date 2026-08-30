@@ -4,7 +4,7 @@
 
 - Windows x64
 - 管理者権限
-- 配布物: `Kotodama-0.10.0-x64.msi`
+- 配布物: `Kotodama-0.11.0-x64.msi`
 
 MSIは自己完結型の.NET実行環境を含むため、利用端末へ別途.NET Runtimeを入れる必要はありません。
 
@@ -21,10 +21,12 @@ C:\Kotodama\
 ## Install
 
 ```powershell
-Start-Process msiexec.exe -Verb RunAs -Wait -ArgumentList '/i "Kotodama-0.10.0-x64.msi" /norestart'
+Start-Process msiexec.exe -Verb RunAs -Wait -ArgumentList '/i "Kotodama-0.11.0-x64.msi" /norestart'
 ```
 
-無人Installでは`/qn`を追加します。完了後、Windowsのインストール済みアプリに`Kotodama 0.10.0`が表示されること、`C:\Kotodama\bin\Kotodama.exe`のFile Versionが`0.10.0.0`であること、新しいターミナルで`kotodama`が解決できることを確認します。MSIは`C:\Kotodama\bin`をシステムPATHへ登録し、ログオンユーザーへ`Kotodama MCP Server` Scheduled Task、Codex、インストール済みの場合はClaude Codeの`kotodama` MCP設定とHooksを登録します。Codexは初回Hook実行時に信頼確認を表示する場合があります。KotodamaはScheduled Taskからコンソールウィンドウを表示せず起動します。
+無人Installでは`/qn`を追加します。完了後、Windowsのインストール済みアプリに`Kotodama 0.11.0`が表示されること、`C:\Kotodama\bin\Kotodama.exe`のFile Versionが`0.11.0.0`であること、新しいターミナルで`kotodama`が解決できることを確認します。MSIは`C:\Kotodama\bin`をシステムPATHへ登録し、ログオンユーザーへ`Kotodama MCP Server` Scheduled Task、Codex、インストール済みの場合はClaude Codeの`kotodama` MCP設定とHooksを登録します。Codexには`%USERPROFILE%\.codex\agents\kotodama-curator.toml`も登録します。Codexは初回Hook実行時に信頼確認を表示する場合があります。KotodamaはScheduled Taskからコンソールウィンドウを表示せず起動します。
+
+Codexプラグインの配布元はソースツリーの`plugins\kotodama`です。プラグインはKotodama HTTPサーバーの`http://127.0.0.1:39280/mcp`へ接続するため、MSIまたは`kotodama configure codex`による常駐設定を先に完了してください。導入後は新しいCodex Taskで`kotodama-knowledge` SkillとKotodama MCP Toolが利用可能であることを確認します。
 
 Scheduled Taskは`http://127.0.0.1:39280/mcp`でKotodamaを起動します。CodexまたはClaude Codeを再起動するとStreamable HTTP Toolが利用可能になります。アンインストール時はScheduled Taskと両クライアントの設定を削除します。
 
@@ -45,7 +47,7 @@ MSIはアプリ本体を削除します。利用者DB等が残っている非空
 ## Hash確認
 
 ```powershell
-Get-FileHash .\Kotodama-0.10.0-x64.msi -Algorithm SHA256
+Get-FileHash .\Kotodama-0.11.0-x64.msi -Algorithm SHA256
 ```
 
 配布元が提示したSHA-256と一致する場合だけInstallしてください。
@@ -55,6 +57,12 @@ Get-FileHash .\Kotodama-0.10.0-x64.msi -Algorithm SHA256
 ZIPは`Kotodama\bin`、`config`、`data`、`logs`の構成で展開されます。任意の書き込み可能な場所へ展開し、`bin\Kotodama.exe`をMCPクライアントから起動してください。自己完結型のため.NET Runtimeは不要です。
 
 ZIPはWindowsへ製品登録せず、Upgrade／Uninstall機能もありません。更新時はKotodamaを停止し、`data`をバックアップしてから、`bin`だけを新しい配布物で置き換えてください。
+
+## Claude Desktop Extension
+
+`Kotodama-<version>-win-x64.dxt`はClaude Desktop専用のWindows x64配布物です。Claude Desktopの`Settings > Extensions > Advanced settings > Install Extension...`からDXTを選択し、SQLite DBとログを保存するデータディレクトリを指定します。
+
+DXTは自己完結型のKotodamaをstdioで起動するため、MSIのインストール、Windows Service、Scheduled Taskは不要です。導入後は新しい会話でKotodama Toolが表示されることと、`use_kotodama` Promptを選択できることを確認します。Extensionの更新・削除前には指定したデータディレクトリをバックアップしてください。削除してもデータディレクトリは自動削除されません。
 
 ## ソース配布
 

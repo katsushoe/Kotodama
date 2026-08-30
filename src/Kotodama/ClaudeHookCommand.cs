@@ -12,7 +12,7 @@ internal static class ClaudeHookCommand
         """;
 
     private const string PersistReason = """
-        Before finishing this turn, review the user message and your response for durable, reusable facts. Use the connected Kotodama MCP tools to search for existing entities and claims, then store only directly supported facts. Preserve conflicts, include source and temporal metadata when known, and never store secrets, authentication data, sensitive personal data without explicit approval, guesses, or the raw transcript. If there is nothing suitable to store, finish without writing.
+        Before finishing this turn, review the user message and your response for durable, reusable facts. For Codex, delegate this focused review to the kotodama-curator custom agent when available; otherwise review directly. Use the connected Kotodama MCP tools to search for existing entities and claims, then store only directly supported facts. Preserve conflicts, include source and temporal metadata when known, and never store secrets, authentication data, sensitive personal data without explicit approval, guesses, or the raw transcript. If there is nothing suitable to store, finish without writing.
         """;
 
     private const string CodexStatePrefix = "kotodama-codex-stop-";

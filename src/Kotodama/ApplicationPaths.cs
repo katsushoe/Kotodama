@@ -31,6 +31,12 @@ internal static class ApplicationPaths
     public static string GetLogDirectory(string baseDirectory)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(baseDirectory);
+        var configuredDirectory = Environment.GetEnvironmentVariable("KOTODAMA_LOG_DIR");
+        if (!string.IsNullOrWhiteSpace(configuredDirectory))
+        {
+            return Path.GetFullPath(configuredDirectory);
+        }
+
         var parent = Directory.GetParent(Path.TrimEndingDirectorySeparator(baseDirectory));
         return parent is not null && Directory.Exists(Path.Combine(parent.FullName, "logs"))
             ? Path.Combine(parent.FullName, "logs")

@@ -25,6 +25,8 @@ KotodamaをインストールしてMCPサーバーとして登録すると、MCP
 
 KotodamaはMCP初期化時にServer Instructionsを返し、`use_kotodama` MCP Promptも提供します。`configure claude`と`configure codex`は各クライアントのHooksも設定し、回答前の検索と応答後の知識登録確認を自動化します。生の会話履歴は保存せず、AIが再利用可能と判断した、根拠のある構造化知識だけをMCP Tool経由で登録します。
 
+Codex向けには`plugins/kotodama`にMCP接続と`kotodama-knowledge` Skillを含むプラグインを提供します。`configure codex`は`kotodama-curator`カスタムAgentもユーザースコープへ登録し、応答後の知識整理を分離Contextで実行できるようにします。Agentが利用不能な場合は親Agentが同じ確認を行います。
+
 ## Kotodamaのデータモデル
 
 ```text
@@ -57,23 +59,29 @@ Claimは明示的な撤回で`active -> retracted`、`dream`で`active -> stale`
 
 ## MSIインストーラーを使う場合
 
-[Kotodama-0.10.0-x64.msi](https://github.com/katsushoe/Kotodama/releases/download/v0.10.0/Kotodama-0.10.0-x64.msi)をダウンロードし、SHA-256を照合してから管理者権限で実行します。
+[Kotodama-0.11.0-x64.msi](https://github.com/katsushoe/Kotodama/releases/download/v0.11.0/Kotodama-0.11.0-x64.msi)をダウンロードし、SHA-256を照合してから管理者権限で実行します。
 
 ```powershell
-Get-FileHash .\Kotodama-0.10.0-x64.msi -Algorithm SHA256
+Get-FileHash .\Kotodama-0.11.0-x64.msi -Algorithm SHA256
 Start-Process msiexec.exe -Verb RunAs -Wait `
-  -ArgumentList '/i "Kotodama-0.10.0-x64.msi" /norestart'
+  -ArgumentList '/i "Kotodama-0.11.0-x64.msi" /norestart'
 ```
 
 インストール先は`C:\Kotodama`です。Windowsのインストール済みアプリへ登録され、UpgradeとUninstallに対応します。
 
+## Claude Desktop Extensionを使う場合
+
+Windows版の`Kotodama-<version>-win-x64.dxt`を取得し、Claude Desktopの`Settings > Extensions > Advanced settings > Install Extension...`から選択します。インストール時にKotodamaのデータディレクトリを指定してください。Claude DesktopはDXT内のKotodamaをstdio MCPサーバーとして起動します。
+
+DXTはMCP Tool、Server Instructions、`use_kotodama` Promptを提供します。Claude DesktopにはClaude Code用Hookとサブエージェントがないため、会話ごとの自動登録は保証されません。確実に知識登録を検討させる場合は、会話で`use_kotodama` Promptを選択してください。DXTを削除しても、指定したデータディレクトリは削除されません。
+
 ## ZIP配布を使う場合
 
-[Kotodama-0.10.0-win-x64.zip](https://github.com/katsushoe/Kotodama/releases/download/v0.10.0/Kotodama-0.10.0-win-x64.zip)をダウンロードし、書き込み可能な任意の場所へ展開します。
+[Kotodama-0.11.0-win-x64.zip](https://github.com/katsushoe/Kotodama/releases/download/v0.11.0/Kotodama-0.11.0-win-x64.zip)をダウンロードし、書き込み可能な任意の場所へ展開します。
 
 ```powershell
-Get-FileHash .\Kotodama-0.10.0-win-x64.zip -Algorithm SHA256
-Expand-Archive .\Kotodama-0.10.0-win-x64.zip -DestinationPath C:\Tools
+Get-FileHash .\Kotodama-0.11.0-win-x64.zip -Algorithm SHA256
+Expand-Archive .\Kotodama-0.11.0-win-x64.zip -DestinationPath C:\Tools
 & C:\Tools\Kotodama\bin\Kotodama.exe
 ```
 
@@ -86,7 +94,7 @@ ZIPは自己完結型で、別途.NET Runtimeを必要としません。Windows�
 ```powershell
 git clone https://github.com/katsushoe/Kotodama.git
 Set-Location Kotodama
-git checkout v0.10.0
+git checkout v0.11.0
 dotnet restore Kotodama.slnx
 dotnet build Kotodama.slnx -c Release --no-restore
 New-Item -ItemType Directory -Force data | Out-Null
