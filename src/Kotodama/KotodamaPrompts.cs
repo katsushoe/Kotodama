@@ -20,6 +20,7 @@ public static class KotodamaGuidance
         Use Kotodama as persistent structured knowledge, not as a transcript store.
         Before answering questions that may depend on retained knowledge, search Kotodama for relevant entities and claims.
         When the conversation contains a durable, reusable fact, consider storing it only when it is directly supported by the conversation or an identified source.
+        When the user explicitly asks to remember, retain, or keep a durable fact for future use, use Kotodama write tools during that turn. Do not substitute built-in memory, loaded instruction files, or acknowledgement alone. Search Kotodama first; an equivalent active claim means it is already stored, while the same text in another file does not.
         Search for existing entities before creating them, preserve conflicting claims, include source, confidence, and temporal fields when known, and treat an empty result as unknown rather than false.
         Treat stale claims as requiring reconfirmation, not as false. Do not store secrets or sensitive personal data without explicit user approval.
         """;
@@ -30,6 +31,7 @@ public static class KotodamaGuidance
 
         1. Before relying on retained knowledge, use search_entities and the query tools to find relevant entities and claims.
         2. Extract only durable, reusable facts that are directly supported by the user or an identified source. Do not store casual conversation, guesses, secrets, authentication data, or sensitive personal data without explicit approval.
+        2a. Treat an explicit request to remember, retain, or keep a durable fact for future use as a request to persist it in Kotodama during the current turn. Do not use built-in memory, loaded instruction files, or acknowledgement as a substitute.
         3. Before registration, search for existing entities and relation types. Reuse them when they represent the same concept; create missing entities or relation types only when needed.
         4. Register each supported fact with propose_claim. Include polarity, source, confidence, knowledge subject, observed time, validity period, and last confirmation time whenever they are known. Do not invent missing values.
         5. Preserve conflicting claims instead of overwriting one with another. Treat an empty query result as unknown, not false.

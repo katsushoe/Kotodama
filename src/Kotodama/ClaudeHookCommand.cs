@@ -11,8 +11,12 @@ internal static class ClaudeHookCommand
         Use the connected Kotodama MCP server before answering when retained knowledge may be relevant. Search first, treat an empty result as unknown, and do not store secrets or raw conversation transcripts.
         """;
 
+    private const string ExplicitPersistenceContext = """
+        The user explicitly asked to remember durable knowledge. Treat this as an explicit request to persist the fact in the connected Kotodama MCP server during this turn. Do not satisfy the request with built-in memory, loaded instruction files, or a verbal acknowledgement alone. Search Kotodama first. If an equivalent active claim already exists, report that it is already stored; otherwise create or reuse the required entities and relation type, then call propose_claim. A matching fact in AGENTS.md or another loaded file does not mean it is already stored in Kotodama. Keep the existing restrictions on secrets, authentication data, sensitive personal data, ambiguity, guesses, and raw transcripts.
+        """;
+
     private const string PersistReason = """
-        Before finishing this turn, review the user message and your response for durable, reusable facts. For Codex, delegate this focused review to the kotodama-curator custom agent when available; otherwise review directly. Use the connected Kotodama MCP tools to search for existing entities and claims, then store only directly supported facts. Preserve conflicts, include source and temporal metadata when known, and never store secrets, authentication data, sensitive personal data without explicit approval, guesses, or the raw transcript. If there is nothing suitable to store, finish without writing.
+        Before finishing this turn, review the user message and your response for durable, reusable facts. If the user asked to remember, retain, or keep a fact for future use, this is explicit Kotodama persistence intent: use the connected Kotodama MCP tools now, not built-in memory, loaded instruction files, or acknowledgement alone. For Codex, delegate this focused review to the kotodama-curator custom agent when available; otherwise review directly. Search for existing entities and claims, then store only directly supported facts. Preserve conflicts, include source and temporal metadata when known, and never store secrets, authentication data, sensitive personal data without explicit approval, guesses, or the raw transcript. If an equivalent active claim already exists, report that it is already stored. If there is nothing suitable to store, finish without writing.
         """;
 
     private const string CodexStatePrefix = "kotodama-codex-stop-";
@@ -35,7 +39,7 @@ internal static class ClaudeHookCommand
                 hookSpecificOutput = new
                 {
                     hookEventName = "UserPromptSubmit",
-                    additionalContext = SearchContext,
+                    additionalContext = BuildPromptContext(document.RootElement),
                 },
             },
             "stop" => BuildStopResult(clientName, document.RootElement),
@@ -44,6 +48,35 @@ internal static class ClaudeHookCommand
 
         await output.WriteLineAsync(JsonSerializer.Serialize(result));
         return 0;
+    }
+
+    private static string BuildPromptContext(JsonElement input)
+    {
+        var prompt = input.TryGetProperty("prompt", out var value) && value.ValueKind == JsonValueKind.String
+            ? value.GetString()
+            : null;
+        return HasExplicitPersistenceIntent(prompt)
+            ? SearchContext + Environment.NewLine + ExplicitPersistenceContext
+            : SearchContext;
+    }
+
+    private static bool HasExplicitPersistenceIntent(string? prompt)
+    {
+        if (string.IsNullOrWhiteSpace(prompt))
+        {
+            return false;
+        }
+
+        if (prompt.Contains("覚えて", StringComparison.Ordinal) ||
+            prompt.Contains("記憶しておいて", StringComparison.Ordinal) ||
+            prompt.Contains("今後もこの方針", StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        return prompt.Contains("remember this", StringComparison.OrdinalIgnoreCase) ||
+            prompt.Contains("remember that", StringComparison.OrdinalIgnoreCase) ||
+            prompt.Contains("keep this in mind", StringComparison.OrdinalIgnoreCase);
     }
 
     private static object BuildStopResult(string clientName, JsonElement input)

@@ -46,6 +46,8 @@ public sealed class McpStdioTests : IAsyncLifetime
         _client.ServerCapabilities.Prompts.Should().NotBeNull();
         _client.ServerInstructions.Should().Contain("persistent structured knowledge");
         _client.ServerInstructions.Should().Contain("Do not store secrets");
+        _client.ServerInstructions.Should().Contain("explicitly asks to remember");
+        _client.ServerInstructions.Should().Contain("Do not substitute built-in memory");
     }
 
     [Fact]
@@ -65,6 +67,7 @@ public sealed class McpStdioTests : IAsyncLifetime
         text.Should().Contain("search_entities");
         text.Should().Contain("propose_claim");
         text.Should().Contain("ask the user");
+        text.Should().Contain("persist it in Kotodama during the current turn");
     }
 
     [Fact]
@@ -84,7 +87,7 @@ public sealed class McpStdioTests : IAsyncLifetime
         var result = await _client.CallToolAsync("get_version", cancellationToken: CancellationToken.None);
 
         result.IsError.Should().NotBeTrue();
-        GetResponseJson(result).Should().Contain("Kotodama").And.Contain("0.11.1");
+        GetResponseJson(result).Should().Contain("Kotodama").And.Contain("0.11.2");
     }
 
     [Fact]

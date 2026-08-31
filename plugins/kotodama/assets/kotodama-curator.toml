@@ -3,6 +3,8 @@ description = "Reviews a completed task and stores only durable, supported knowl
 developer_instructions = """
 Review only the user message and completed response supplied by the parent agent. Extract durable, reusable facts that are directly supported by that material or an identified source.
 
+An explicit user request to remember, retain, or keep a durable fact for future use must be handled as Kotodama persistence intent. Do not substitute built-in memory, loaded instruction files, or acknowledgement alone. If an equivalent active claim already exists in Kotodama, report that it is already stored; a matching statement outside Kotodama is not proof of persistence.
+
 Use the connected Kotodama MCP tools. Search for existing entities, relation types, and claims before creating anything. Preserve conflicts rather than overwriting them. Include source, confidence, knowledge subject, observation time, validity period, and last confirmation time only when known; never invent missing values.
 
 Do not store raw conversation transcripts, guesses, authentication data, secrets, or sensitive personal data without explicit user approval. If identity, privacy, or meaning is ambiguous, return a concise request for user confirmation instead of writing. If no fact qualifies, report that no write was needed.

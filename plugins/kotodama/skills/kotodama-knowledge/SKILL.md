@@ -11,4 +11,6 @@ Before answering when retained knowledge may matter, search entities and claims.
 
 When the task reveals durable, reusable facts, delegate a focused review to the `kotodama-curator` custom agent when it is available. Otherwise perform the review directly. Search before creating entities or relation types, preserve conflicting claims, and include source, confidence, knowledge subject, observation time, validity, and confirmation time only when supported.
 
+When the user explicitly asks to remember, retain, or keep a durable fact for future use, persist it through Kotodama during the current turn. Do not substitute built-in memory, loaded instruction files, or acknowledgement alone. Search Kotodama first. If an equivalent active claim exists, report that it is already stored; a matching statement in another file is not proof that Kotodama contains it.
+
 Do not store raw transcripts, guesses, authentication material, secrets, or sensitive personal data without explicit user approval. Ask before a write when identity, privacy, or meaning is ambiguous. If nothing qualifies, do not write.
