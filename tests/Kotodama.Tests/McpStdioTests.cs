@@ -87,7 +87,7 @@ public sealed class McpStdioTests : IAsyncLifetime
         var result = await _client.CallToolAsync("get_version", cancellationToken: CancellationToken.None);
 
         result.IsError.Should().NotBeTrue();
-        GetResponseJson(result).Should().Contain("Kotodama").And.Contain("0.11.2");
+        GetResponseJson(result).Should().Contain("Kotodama").And.Contain("0.11.3");
     }
 
     [Fact]
