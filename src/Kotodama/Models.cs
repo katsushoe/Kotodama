@@ -67,7 +67,11 @@ public sealed record RememberKnowledgeResult(
     bool CreatedRelationType);
 
 /// <summary>dream の実行結果です。</summary>
-public sealed record DreamResult(int Examined, int MarkedStale, DateTimeOffset EvaluatedAt);
+public sealed record DreamResult(int Examined, int MarkedStale, DateTimeOffset EvaluatedAt)
+{
+    /// <summary>confidenceを減衰したClaim数です。</summary>
+    public int ReducedConfidence { get; init; }
+}
 
 /// <summary>Event の登録要求です。</summary>
 public sealed record EventInput(string CanonicalName, long? ActorId, DateTimeOffset OccurredAt, string Action, long? ObjectId = null, string? ObjectValue = null, string Namespace = "global", string? Metadata = null);

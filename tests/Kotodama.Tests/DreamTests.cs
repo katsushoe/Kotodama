@@ -143,7 +143,7 @@ public sealed class DreamTests : IAsyncLifetime
     }
 
     private async Task<ClaimRecord> SingleClaimAsync(bool includeRetracted = false) =>
-        (await _store.QueryClaimsAsync(includeRetracted: includeRetracted)).Single();
+        (await _store.QueryClaimsAsync(includeRetracted: includeRetracted, includeStale: true)).Single();
 
     private sealed class FixedTimeProvider(DateTimeOffset now) : TimeProvider
     {

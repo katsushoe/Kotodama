@@ -12,20 +12,22 @@ dreamはオンラインClaimを直接走査しながら逐次更新せず、接�
 - RelationTypeの`freshness_policy`が`permanent`以外
 - `refresh_after_seconds`が設定済み
 
-基準日時は`last_confirmed_at`があればその値、なければ`observed_at`です。次の条件を満たす場合に`stale`候補となります。
+通常Claimの基準日時は`last_confirmed_at`があればその値、なければ`observed_at`です。次の条件を満たす場合に`stale`候補となります。
 
 ```text
 評価日時 - 基準日時 > refresh_after_seconds
 ```
 
-境界と等しい場合はまだ`active`です。dreamはconfidence、polarity、Source、有効期間を変更しません。
+境界と等しい場合はまだ`active`です。通常Claimについて、dreamはconfidence、polarity、Source、有効期間を変更しません。
+
+`remember_knowledge`が作成する`remembers` Claimは30日周期で評価します。前回の保存・再確認・減衰から30日を超えるごとにconfidenceを80%へ減衰し、減衰後が0.2未満になった時点で`stale`へ変更します。同じ知識が再入力されるとconfidenceと確認日時が回復します。詳細な判断理由は[ADR-0005](ADR-0005-DREAM-KNOWLEDGE-DECAY.ja.md)を参照してください。
 
 ## 処理手順
 
 1. `CREATE TEMP TABLE dream_updates`で接続ローカルの一時テーブルを作ります。
-2. 対象Claimを全件評価し、Claim ID、評価時点の`updated_at`、更新先状態、更新日時を保存します。
+2. 対象Claimを全件評価し、Claim ID、評価時点の`updated_at`、更新先状態、更新先confidence、更新日時を保存します。
 3. 即時書き込みトランザクションを開始します。
-4. `status = active`かつ`updated_at`が退避時点と一致するClaimだけを`stale`へ更新します。
+4. `status = active`かつ`updated_at`が退避時点と一致するClaimだけを減衰または`stale`へ更新します。
 5. 全件更新できたらcommitし、一時テーブルを削除します。
 
 SQLiteではテーブル自体をオンラインテーブルと物理交換するのではなく、更新候補を一時テーブルで隔離し、条件付き一括UPDATEをcommitすることで同等の原子性と競合保護を実現しています。
@@ -42,4 +44,4 @@ SQLiteではテーブル自体をオンラインテーブルと物理交換す�
 
 HTTP常駐モードでは、ホスト内のBackground Serviceが`KOTODAMA_DREAM_INTERVAL_SECONDS`（既定3600秒）ごとに実行します。不正値または0以下は既定値として扱います。stdioモードでは自動実行しません。
 
-任意の時点でMCP Toolの`run_dream`を呼び出して手動実行できます。戻り値は評価対象件数`examined`、実際にstaleへ変更した件数`markedStale`、評価日時`evaluatedAt`です。同時実行は安全ですが、不要な競合を避けるため、定期実行元はHTTP常駐ホストだけにすることを推奨します。
+任意の時点でMCP Toolの`run_dream`を呼び出して手動実行できます。戻り値は評価対象件数`examined`、confidence減衰件数`reducedConfidence`、実際にstaleへ変更した件数`markedStale`、評価日時`evaluatedAt`です。同時実行は安全ですが、不要な競合を避けるため、定期実行元はHTTP常駐ホストだけにすることを推奨します。

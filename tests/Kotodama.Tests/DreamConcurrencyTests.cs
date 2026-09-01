@@ -57,7 +57,7 @@ public sealed class DreamConcurrencyTests : IAsyncLifetime
         hook.Release();
         await dreamTask;
 
-        (await _store.QueryClaimsAsync()).Single().Status.Should().Be(ClaimStatus.Stale);
+        (await _store.QueryClaimsAsync(includeStale: true)).Single().Status.Should().Be(ClaimStatus.Stale);
     }
 
     [Fact]
@@ -70,7 +70,7 @@ public sealed class DreamConcurrencyTests : IAsyncLifetime
         var results = await Task.WhenAll(first, second);
 
         results.Sum(x => x.MarkedStale).Should().Be(1);
-        (await _store.QueryClaimsAsync()).Single().Status.Should().Be(ClaimStatus.Stale);
+        (await _store.QueryClaimsAsync(includeStale: true)).Single().Status.Should().Be(ClaimStatus.Stale);
     }
 
     [Fact]

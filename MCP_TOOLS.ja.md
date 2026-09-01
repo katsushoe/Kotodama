@@ -29,14 +29,14 @@ Promptは利用者またはクライアントが選択して使用します。Se
 | `search_entities` | `query`, `limit` | canonical name部分一致。1～200件 |
 | `create_relation_type` | `input` | RelationTypeを追加しIDを返す |
 | `propose_claim` | `candidate` | 検証後にRelation、Source、Claimを原子的に保存 |
-| `remember_knowledge` | `input.text`、任意のnamespace・確信度・Source・時点 | 自然文をユーザーが主張したStatementとして一括保存。完全一致のActive Claimは再利用 |
+| `remember_knowledge` | `input.text`、任意のnamespace・確信度・Source・時点 | 自然文をユーザーが主張したStatementとして一括保存。完全一致Claimは再確認 |
 | `retract_claim` | `claimId` | active Claimをretractedへ変更 |
-| `query_claims` | 任意の検索条件 | Claim一覧。空配列はunknown |
+| `query_claims` | 任意の検索条件、`includeRetracted`、`includeStale` | Claim一覧。空配列はunknown |
 | `query_relations` | Entity、RelationType | 関連Claim一覧 |
 | `get_neighbors` | `entityId` | Entityへ接続するClaim一覧 |
 | `get_knowledge_context` | `entityId` | 現在時点で有効なClaim一覧 |
 | `create_event` | `input` | Event EntityとEvent行を追加 |
-| `run_dream` | なし | 期限超過Claimをstaleへ変更 |
+| `run_dream` | なし | `remembers`のconfidenceを段階減衰し、基準未満または期限超過Claimをstaleへ変更 |
 
 ## 代表的な入力
 
@@ -105,7 +105,7 @@ Promptは利用者またはクライアントが選択して使用します。Se
 }
 ```
 
-`text`はユーザーが提示した事実を改変せず渡します。Kotodamaは`Conversation user`からStatement Entityへの`remembers` Claimとして、一つのトランザクションで保存します。同じnamespaceと完全一致するActive Claimがある場合は`already_stored`を返し、Claimを重複登録しません。このToolは自然文の意味解析を行わず、原文を保持します。
+`text`はユーザーが提示した事実を改変せず渡します。Kotodamaは`Conversation user`からStatement Entityへの`remembers` Claimとして、一つのトランザクションで保存します。同じnamespaceと完全一致する非撤回Claimがある場合は`already_stored`を返し、Claimを重複登録せずconfidence、状態、確認日時を回復します。このToolは自然文の意味解析を行わず、原文を保持します。
 
 ### query_claims
 
@@ -114,11 +114,12 @@ Promptは利用者またはクライアントが選択して使用します。Se
   "entityId": 1,
   "relationType": "works_at",
   "validAt": "2026-08-25T00:00:00Z",
-  "includeRetracted": false
+  "includeRetracted": false,
+  "includeStale": false
 }
 ```
 
-`includeRetracted`の既定値はfalseです。`stale`は除外されません。`validAt`を省略すると有効期間による絞り込みを行いません。
+`includeRetracted`と`includeStale`の既定値はfalseです。`validAt`を省略すると有効期間による絞り込みを行いません。
 
 ### create_event
 

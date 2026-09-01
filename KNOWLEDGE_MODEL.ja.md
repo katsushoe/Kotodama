@@ -20,8 +20,9 @@ stale -----reactivate_claim--> active
 
 - `active`: 現在の検索対象です。
 - `retracted`: 明示的に撤回済みです。既定検索から除外されます。
-- `stale`: 現在性の確認期限を超えています。falseやretractedではありません。
+- `stale`: 現在性またはconfidenceの基準を下回り、既定検索から除外されています。falseやretractedではありません。
 - `reactivate_claim`は`retracted`または`stale`を`active`へ戻し、指定された再確認日時を`last_confirmed_at`と`updated_at`へ保存します。再確認日時を省略した場合は実行日時を使用します。すでに`active`のClaimまたは存在しないClaimは更新しません。
+- `remembers` Claimは30日間再確認されないごとにconfidenceが80%へ減衰し、0.2未満で`stale`になります。同一文の再入力は既存Claimを再確認し、confidenceを回復します。
 
 ## Open World
 

@@ -40,6 +40,8 @@ public sealed class CodexPluginTests
             .And.Contain("kotodama-curator")
             .And.Contain("explicitly asks to remember")
             .And.Contain("built-in memory")
+            .And.Contain("Kotodamaに記録しました")
+            .And.Contain("successful database write")
             .And.Contain("Do not store raw transcripts")
             .And.NotContain("[TODO:");
     }
@@ -53,6 +55,8 @@ public sealed class CodexPluginTests
             .And.Contain("user's factual text or an identified source")
             .And.Contain("assistant-generated text without an identified source")
             .And.Contain("pass only that factual statement without rewriting it")
+            .And.Contain("Kotodamaに記録しました")
+            .And.Contain("successful database write")
             .And.Contain("Do not store raw conversation transcripts");
     }
 }

@@ -35,7 +35,10 @@ public sealed class ClaudeHookCommandTests
         var context = result.RootElement.GetProperty("hookSpecificOutput").GetProperty("additionalContext").GetString();
         context.Should().Contain("explicit request to persist")
             .And.Contain("Do not satisfy the request with built-in memory")
-            .And.Contain("propose_claim");
+            .And.Contain("propose_claim")
+            .And.Contain("Kotodamaに記録しました")
+            .And.Contain("only after a successful database write")
+            .And.Contain("already_stored");
         prompt.Should().NotContain("Kotodama");
     }
 
@@ -49,7 +52,8 @@ public sealed class ClaudeHookCommandTests
 
         using var result = JsonDocument.Parse(output.ToString());
         result.RootElement.GetProperty("decision").GetString().Should().Be("block");
-        result.RootElement.GetProperty("reason").GetString().Should().Contain("durable, reusable facts");
+        result.RootElement.GetProperty("reason").GetString().Should().Contain("factual statements suitable for structured knowledge");
+        result.RootElement.GetProperty("reason").GetString().Should().Contain("dream gradually reduces confidence");
         result.RootElement.GetProperty("reason").GetString().Should().Contain("explicitly asked to remember");
     }
 
@@ -67,7 +71,9 @@ public sealed class ClaudeHookCommandTests
             .And.Contain("user's factual text or an identified source")
             .And.Contain("assistant-generated text without an identified source")
             .And.Contain("never pass or store the raw transcript")
-            .And.Contain("do not create a duplicate");
+            .And.Contain("reconfirm it instead of creating a duplicate")
+            .And.Contain("Kotodamaに記録しました")
+            .And.Contain("only after a successful database write");
     }
 
     [Fact]

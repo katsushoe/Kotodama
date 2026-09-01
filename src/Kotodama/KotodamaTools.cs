@@ -8,7 +8,7 @@ namespace Kotodama;
 public sealed class KotodamaTools(KnowledgeStore store)
 {
     [McpServerTool(Name = "get_version"), Description("稼働中のKotodamaバージョンを返します。")]
-    public static object GetVersion() => new { name = "Kotodama", version = "0.11.5" };
+    public static object GetVersion() => new { name = "Kotodama", version = "0.11.7" };
 
     [McpServerTool(Name = "get_entity"), Description("IDでEntityを取得します。存在しない場合はnullです。")]
     public Task<EntityRecord?> GetEntity(long id, CancellationToken cancellationToken) => store.GetEntityAsync(id, cancellationToken);
@@ -19,7 +19,7 @@ public sealed class KotodamaTools(KnowledgeStore store)
     [McpServerTool(Name = "propose_claim"), Description("Knowledge Candidateを規則検証し、妥当ならClaimとして保存します。")]
     public Task<OperationResult> ProposeClaim(ClaimCandidate candidate, CancellationToken cancellationToken) => store.ProposeClaimAsync(candidate, cancellationToken);
 
-    [McpServerTool(Name = "remember_knowledge"), Description("ユーザーが『覚えて』『記憶して』『今後参照して』と依頼した自然文を、組み込みメモリの代わりにKotodamaへ永続保存します。textへユーザーの事実を改変せず渡してください。完全一致するActive Claimは重複登録しません。")]
+    [McpServerTool(Name = "remember_knowledge"), Description("ユーザーが提示した根拠のある自然文をKotodamaへ保存します。長期利用価値が不確かでも保存でき、dreamが未確認期間に応じてconfidenceを減衰します。textへユーザーの事実を改変せず渡してください。完全一致する非撤回Claimは再確認して重複登録しません。")]
     public Task<RememberKnowledgeResult> RememberKnowledge(RememberKnowledgeInput input, CancellationToken cancellationToken) => store.RememberKnowledgeAsync(input, cancellationToken);
 
     [McpServerTool(Name = "retract_claim"), Description("Claimを物理削除せずretractedへ変更します。")]
@@ -32,7 +32,7 @@ public sealed class KotodamaTools(KnowledgeStore store)
     public Task<OperationResult> DeleteClaim(long claimId, CancellationToken cancellationToken) => store.DeleteClaimAsync(claimId, cancellationToken);
 
     [McpServerTool(Name = "query_claims"), Description("ClaimをEntity、RelationType、過去時点で検索します。空配列はunknownです。")]
-    public Task<IReadOnlyList<ClaimRecord>> QueryClaims(long? entityId = null, string? relationType = null, DateTimeOffset? validAt = null, bool includeRetracted = false, CancellationToken cancellationToken = default) => store.QueryClaimsAsync(entityId, relationType, validAt, includeRetracted, cancellationToken);
+    public Task<IReadOnlyList<ClaimRecord>> QueryClaims(long? entityId = null, string? relationType = null, DateTimeOffset? validAt = null, bool includeRetracted = false, bool includeStale = false, CancellationToken cancellationToken = default) => store.QueryClaimsAsync(entityId, relationType, validAt, includeRetracted, includeStale, cancellationToken);
 
     [McpServerTool(Name = "query_relations"), Description("Relationと関連Claimを検索します。")]
     public Task<IReadOnlyList<ClaimRecord>> QueryRelations(long? entityId = null, string? relationType = null, CancellationToken cancellationToken = default) => store.QueryClaimsAsync(entityId, relationType, cancellationToken: cancellationToken);
