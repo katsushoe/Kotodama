@@ -48,6 +48,7 @@ public sealed class McpStdioTests : IAsyncLifetime
         _client.ServerInstructions.Should().Contain("Do not store secrets");
         _client.ServerInstructions.Should().Contain("explicitly asks to remember");
         _client.ServerInstructions.Should().Contain("Do not substitute built-in memory");
+        _client.ServerInstructions.Should().Contain("call remember_knowledge");
     }
 
     [Fact]
@@ -67,7 +68,7 @@ public sealed class McpStdioTests : IAsyncLifetime
         text.Should().Contain("search_entities");
         text.Should().Contain("propose_claim");
         text.Should().Contain("ask the user");
-        text.Should().Contain("persist it in Kotodama during the current turn");
+        text.Should().Contain("call remember_knowledge during the current turn");
     }
 
     [Fact]
@@ -78,7 +79,7 @@ public sealed class McpStdioTests : IAsyncLifetime
         tools.Select(x => x.Name).Should().BeEquivalentTo(
             "get_version", "get_entity", "search_entities", "propose_claim", "retract_claim", "reactivate_claim", "delete_claim",
             "query_claims", "query_relations", "get_neighbors", "get_knowledge_context",
-            "run_dream", "create_entity", "create_relation_type", "update_relation_type", "delete_relation_type", "create_event");
+            "run_dream", "create_entity", "create_relation_type", "update_relation_type", "delete_relation_type", "create_event", "remember_knowledge");
     }
 
     [Fact]
@@ -106,6 +107,25 @@ public sealed class McpStdioTests : IAsyncLifetime
 
         GetResponseJson(proposed).Should().Contain("accepted");
         GetResponseJson(queried).Should().Contain("relation_" + suffix);
+    }
+
+    [Fact]
+    public async Task RememberKnowledge_ThroughStdio_PersistsNaturalTextInOneCall()
+    {
+        var text = "自然文のバックアップ予定 " + Guid.NewGuid().ToString("N");
+
+        var remembered = await CallAsync("remember_knowledge", new Dictionary<string, object?>
+        {
+            ["input"] = new { text },
+        });
+        var searched = await CallAsync("search_entities", new Dictionary<string, object?>
+        {
+            ["query"] = text,
+        });
+
+        GetResponseJson(remembered).Should().Contain("stored");
+        using var document = JsonDocument.Parse(GetResponseJson(searched));
+        document.RootElement.EnumerateArray().Select(x => x.GetProperty("canonicalName").GetString()).Should().Contain(text);
     }
 
     [Fact]

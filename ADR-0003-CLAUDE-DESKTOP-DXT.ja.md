@@ -10,9 +10,9 @@ Claude Code用プラグインのAgentとHookは、通常のClaude Desktop会話�
 
 ## Decision
 
-Windows x64自己完結型Kotodama stdioサーバーを含むDXTを配布します。DXTは既存のMCP Tool、`use_kotodama` Prompt、Server Instructionsをそのまま公開します。DBとログは利用者が選択したDXT外部のデータディレクトリへ保存します。
+Windows x64自己完結型Kotodama stdioサーバーを含むDXTを配布します。DXTは既存のMCP Tool、`use_kotodama` Prompt、Server Instructionsをそのまま公開します。明示的な記憶依頼に対するTool選択を容易にするため、自然文を単一トランザクションで保存する`remember_knowledge` Toolを公開し、Server Instructionsでは組み込みメモリより同Toolを優先するよう指示します。DBとログは利用者が選択したDXT外部のデータディレクトリへ保存します。
 
-Claude DesktopではAgentやHookによる毎応答後の登録保証を仕様としません。知識登録はServer Instructions、MCP PromptおよびClaudeによるTool選択に基づくbest effortとします。
+Claude DesktopではAgentやHookによる毎応答後の登録保証を仕様としません。`remember_knowledge`を含む知識登録はServer Instructions、MCP PromptおよびClaudeによるTool選択に基づくbest effortとします。
 
 ## Alternatives
 
@@ -36,7 +36,7 @@ Claude DesktopではAgentやHookによる毎応答後の登録保証を仕様と
 
 - DXTの更新前にデータディレクトリをバックアップします。
 - Claude DesktopからExtensionを削除しても、外部データディレクトリは自動削除しません。
-- DXTの自動知識登録は保証せず、必要な場合は`use_kotodama` Promptを明示的に選択します。
+- DXTの自動知識登録は保証せず、必要な場合は`use_kotodama` Promptまたは`remember_knowledge` Toolを明示的に選択します。
 
 ## Implementation, tests, and documentation
 

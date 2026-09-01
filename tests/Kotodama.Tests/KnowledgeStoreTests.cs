@@ -48,6 +48,46 @@ public sealed class KnowledgeStoreTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task RememberKnowledge_WhenTextIsNew_StoresStructuredStatement()
+    {
+        var result = await _store.RememberKnowledgeAsync(new("定例バックアップは毎週金曜日の18時に実行します。"));
+        var statement = await _store.GetEntityAsync(result.StatementId);
+        var claims = await _store.QueryClaimsAsync(result.SubjectId, "remembers");
+
+        result.Ok.Should().BeTrue();
+        result.Status.Should().Be("stored");
+        result.CreatedEntities.Should().Be(2);
+        result.CreatedRelationType.Should().BeTrue();
+        statement.Should().NotBeNull();
+        statement!.ClassName.Should().Be("Statement");
+        claims.Should().ContainSingle(x => x.ClaimId == result.ClaimId && x.AssertionType == "remembered_text");
+    }
+
+    [Fact]
+    public async Task RememberKnowledge_WhenActiveTextAlreadyExists_DoesNotDuplicateClaim()
+    {
+        var first = await _store.RememberKnowledgeAsync(new("同じ知識"));
+        var second = await _store.RememberKnowledgeAsync(new("  同じ知識  "));
+        var claims = await _store.QueryClaimsAsync(first.SubjectId, "remembers");
+
+        second.Status.Should().Be("already_stored");
+        second.ClaimId.Should().Be(first.ClaimId);
+        second.CreatedEntities.Should().Be(0);
+        second.CreatedRelationType.Should().BeFalse();
+        claims.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task RememberKnowledge_WhenInputIsInvalid_DoesNotCreateRows()
+    {
+        var action = () => _store.RememberKnowledgeAsync(new("invalid", Confidence: 2));
+
+        await action.Should().ThrowAsync<ArgumentOutOfRangeException>();
+        (await _store.SearchEntitiesAsync(string.Empty)).Should().BeEmpty();
+        (await _store.QueryClaimsAsync()).Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task CreateEvent_WithLiteralObject_PersistsEventEntity()
     {
         var actor = await _store.CreateEntityAsync(new("佐藤", "Person"));

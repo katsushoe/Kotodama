@@ -19,6 +19,9 @@ public sealed class KotodamaTools(KnowledgeStore store)
     [McpServerTool(Name = "propose_claim"), Description("Knowledge Candidateを規則検証し、妥当ならClaimとして保存します。")]
     public Task<OperationResult> ProposeClaim(ClaimCandidate candidate, CancellationToken cancellationToken) => store.ProposeClaimAsync(candidate, cancellationToken);
 
+    [McpServerTool(Name = "remember_knowledge"), Description("ユーザーが『覚えて』『記憶して』『今後参照して』と依頼した自然文を、組み込みメモリの代わりにKotodamaへ永続保存します。textへユーザーの事実を改変せず渡してください。完全一致するActive Claimは重複登録しません。")]
+    public Task<RememberKnowledgeResult> RememberKnowledge(RememberKnowledgeInput input, CancellationToken cancellationToken) => store.RememberKnowledgeAsync(input, cancellationToken);
+
     [McpServerTool(Name = "retract_claim"), Description("Claimを物理削除せずretractedへ変更します。")]
     public Task<OperationResult> RetractClaim(long claimId, CancellationToken cancellationToken) => store.RetractClaimAsync(claimId, cancellationToken);
 
