@@ -8,7 +8,7 @@ namespace Kotodama;
 public sealed class KotodamaTools(KnowledgeStore store)
 {
     [McpServerTool(Name = "get_version"), Description("稼働中のKotodamaバージョンを返します。")]
-    public static object GetVersion() => new { name = "Kotodama", version = "0.11.1" };
+    public static object GetVersion() => new { name = "Kotodama", version = "0.11.4" };
 
     [McpServerTool(Name = "get_entity"), Description("IDでEntityを取得します。存在しない場合はnullです。")]
     public Task<EntityRecord?> GetEntity(long id, CancellationToken cancellationToken) => store.GetEntityAsync(id, cancellationToken);
@@ -18,6 +18,9 @@ public sealed class KotodamaTools(KnowledgeStore store)
 
     [McpServerTool(Name = "propose_claim"), Description("Knowledge Candidateを規則検証し、妥当ならClaimとして保存します。")]
     public Task<OperationResult> ProposeClaim(ClaimCandidate candidate, CancellationToken cancellationToken) => store.ProposeClaimAsync(candidate, cancellationToken);
+
+    [McpServerTool(Name = "remember_knowledge"), Description("ユーザーが『覚えて』『記憶して』『今後参照して』と依頼した自然文を、組み込みメモリの代わりにKotodamaへ永続保存します。textへユーザーの事実を改変せず渡してください。完全一致するActive Claimは重複登録しません。")]
+    public Task<RememberKnowledgeResult> RememberKnowledge(RememberKnowledgeInput input, CancellationToken cancellationToken) => store.RememberKnowledgeAsync(input, cancellationToken);
 
     [McpServerTool(Name = "retract_claim"), Description("Claimを物理削除せずretractedへ変更します。")]
     public Task<OperationResult> RetractClaim(long claimId, CancellationToken cancellationToken) => store.RetractClaimAsync(claimId, cancellationToken);

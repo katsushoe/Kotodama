@@ -14,6 +14,8 @@ Claude CodeとCodexのユーザースコープ`UserPromptSubmit` Hookから回�
 
 Claude Codeは`Stop`入力の`stop_hook_active`、Codexはセッション単位の一時再入マーカーにより、継続要求を一度に制限します。Hook障害はクライアントの標準的な非ブロッキングHookエラーとして扱い、認証情報、秘密情報、推測、未承認の機微な個人情報は登録対象外とします。
 
+`UserPromptSubmit` Hookは「覚えておいて」等の明示的な永続化意図を検出した場合、内蔵メモリ、読み込み済み文書、応答だけで代替せず、そのターン中にKotodamaを検索して未登録ならClaimを登録する指針を追加します。同等のactive Claimがすでに存在する場合は重複登録せず、登録済みと回答します。
+
 Server InstructionsとMCP Promptは、Hooksを無効化した環境や未対応クライアント向けの標準MCPフォールバックとして維持します。
 
 ## 代替案と不採用理由

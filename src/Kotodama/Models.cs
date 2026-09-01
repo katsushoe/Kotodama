@@ -46,6 +46,26 @@ public sealed record ClaimRecord(long ClaimId, long RelationId, string RelationT
 /// <summary>操作結果です。</summary>
 public sealed record OperationResult(bool Ok, string Status, string? Reason = null, long? Id = null);
 
+/// <summary>自然文の知識保存要求です。</summary>
+public sealed record RememberKnowledgeInput(
+    string Text,
+    string Namespace = "global",
+    double Confidence = 1,
+    SourceInput? Source = null,
+    DateTimeOffset? ObservedAt = null,
+    DateTimeOffset? ValidFrom = null,
+    DateTimeOffset? ValidTo = null);
+
+/// <summary>自然文の知識保存結果です。</summary>
+public sealed record RememberKnowledgeResult(
+    bool Ok,
+    string Status,
+    long SubjectId,
+    long StatementId,
+    long ClaimId,
+    int CreatedEntities,
+    bool CreatedRelationType);
+
 /// <summary>dream の実行結果です。</summary>
 public sealed record DreamResult(int Examined, int MarkedStale, DateTimeOffset EvaluatedAt);
 

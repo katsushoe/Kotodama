@@ -1,6 +1,6 @@
 # MCP Tool仕様
 
-Kotodamaはstdio／Streamable HTTP Transportで17個のToolを提供します。プロパティ名はJSONではcamelCaseを使用します。
+Kotodamaはstdio／Streamable HTTP Transportで18個のToolを提供します。プロパティ名はJSONではcamelCaseを使用します。
 
 ## 管理操作
 
@@ -11,7 +11,7 @@ Kotodamaはstdio／Streamable HTTP Transportで17個のToolを提供します。
 
 ## Server InstructionsとPrompt
 
-MCP初期化時に、Kotodamaを永続的な構造化知識として利用するためのServer Instructionsを返します。対応クライアントはこの指針をAIのコンテキストへ追加できます。指針には、回答前の検索、再利用可能な事実だけの登録、Entityの重複確認、競合Claimの保持、Source・確信度・時点の記録、機密情報の登録前確認が含まれます。
+MCP初期化時に、Kotodamaを永続的な構造化知識として利用するためのServer Instructionsを返します。対応クライアントはこの指針をAIのコンテキストへ追加できます。指針には、回答前の検索、再利用可能な事実だけの登録、Entityの重複確認、競合Claimの保持、Source・確信度・時点の記録、機密情報の登録前確認が含まれます。「覚えて」「記憶して」「今後参照して」等の明示依頼では、組み込みメモリやファイル作成より`remember_knowledge`を優先するよう指示します。
 
 `prompts/list`と`prompts/get`により、次のMCP Promptも提供します。
 
@@ -29,6 +29,7 @@ Promptは利用者またはクライアントが選択して使用します。Se
 | `search_entities` | `query`, `limit` | canonical name部分一致。1～200件 |
 | `create_relation_type` | `input` | RelationTypeを追加しIDを返す |
 | `propose_claim` | `candidate` | 検証後にRelation、Source、Claimを原子的に保存 |
+| `remember_knowledge` | `input.text`、任意のnamespace・確信度・Source・時点 | 自然文をユーザーが主張したStatementとして一括保存。完全一致のActive Claimは再利用 |
 | `retract_claim` | `claimId` | active Claimをretractedへ変更 |
 | `query_claims` | 任意の検索条件 | Claim一覧。空配列はunknown |
 | `query_relations` | Entity、RelationType | 関連Claim一覧 |
@@ -91,6 +92,20 @@ Promptは利用者またはクライアントが選択して使用します。Se
 ```
 
 `confidence`、`attributionConfidence`、`strength`は0以上1以下です。`strength`はRelationTypeの`allowStrength`がtrueの場合だけ指定できます。`validTo`は`validFrom`より前にできません。参照EntityまたはRelationTypeが存在しない場合は`status: rejected`です。
+
+### remember_knowledge
+
+```json
+{
+  "input": {
+    "text": "このプロジェクトの定例バックアップは毎週金曜日の18時に実行します。",
+    "namespace": "global",
+    "confidence": 1
+  }
+}
+```
+
+`text`はユーザーが提示した事実を改変せず渡します。Kotodamaは`Conversation user`からStatement Entityへの`remembers` Claimとして、一つのトランザクションで保存します。同じnamespaceと完全一致するActive Claimがある場合は`already_stored`を返し、Claimを重複登録しません。このToolは自然文の意味解析を行わず、原文を保持します。
 
 ### query_claims
 

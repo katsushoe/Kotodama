@@ -113,6 +113,49 @@ public sealed class KnowledgeStore
         return new(true, "accepted", Id: claimId);
     }
 
+    /// <summary>自然文をユーザーが主張したStatementとして原子的に保存します。</summary>
+    public async Task<RememberKnowledgeResult> RememberKnowledgeAsync(RememberKnowledgeInput input, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(input);
+        ArgumentException.ThrowIfNullOrWhiteSpace(input.Text);
+        ArgumentException.ThrowIfNullOrWhiteSpace(input.Namespace);
+        if (input.Confidence is < 0 or > 1) throw new ArgumentOutOfRangeException(nameof(input), "confidence must be between 0 and 1");
+        if (input.ValidFrom is not null && input.ValidTo is not null && input.ValidTo <= input.ValidFrom) throw new ArgumentException("valid_to must be greater than valid_from", nameof(input));
+
+        var text = input.Text.Trim();
+        var now = Now();
+        await using var connection = await OpenAsync(cancellationToken);
+        await using var transaction = connection.BeginTransaction(deferred: false);
+        var (subjectId, subjectCreated) = await GetOrCreateEntityAsync(connection, transaction, "Conversation user", "KnowledgeSubject", input.Namespace, now, cancellationToken);
+        var (statementId, statementCreated) = await GetOrCreateEntityAsync(connection, transaction, text, "Statement", input.Namespace, now, cancellationToken);
+        var (relationTypeId, relationTypeCreated) = await GetOrCreateRememberRelationTypeAsync(connection, transaction, now, cancellationToken);
+        var relationId = await GetOrCreateRelationAsync(connection, transaction, relationTypeId, RelationKind.Directed, subjectId, statementId, cancellationToken);
+        var existingClaimId = await FindActiveRememberedClaimAsync(connection, transaction, relationId, cancellationToken);
+        if (existingClaimId is not null)
+        {
+            await transaction.CommitAsync(cancellationToken);
+            return new(true, "already_stored", subjectId, statementId, existingClaimId.Value, Convert.ToInt32(subjectCreated) + Convert.ToInt32(statementCreated), relationTypeCreated);
+        }
+
+        var source = input.Source ?? new SourceInput("user_message");
+        var sourceId = await InsertSourceAsync(connection, transaction, source, cancellationToken);
+        var candidate = new ClaimCandidate(
+            subjectId,
+            statementId,
+            "remembers",
+            Confidence: input.Confidence,
+            KnowledgeSubjectId: subjectId,
+            Source: source,
+            AssertionType: "remembered_text",
+            ObservedAt: input.ObservedAt,
+            ValidFrom: input.ValidFrom,
+            ValidTo: input.ValidTo,
+            LastConfirmedAt: input.ObservedAt ?? now);
+        var claimId = await InsertClaimAsync(connection, transaction, relationId, sourceId, candidate, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return new(true, "stored", subjectId, statementId, claimId, Convert.ToInt32(subjectCreated) + Convert.ToInt32(statementCreated), relationTypeCreated);
+    }
+
     /// <summary>Claim を論理撤回します。</summary>
     public async Task<OperationResult> RetractClaimAsync(long claimId, CancellationToken cancellationToken = default)
     {
@@ -342,6 +385,53 @@ public sealed class KnowledgeStore
     private static string EscapeLike(string value) => value.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("%", "\\%", StringComparison.Ordinal).Replace("_", "\\_", StringComparison.Ordinal);
     private static EntityRecord ReadEntity(SqliteDataReader r) => new(r.GetInt64(0), r.GetString(1), r.GetString(2), r.GetString(3), r.IsDBNull(4) ? null : r.GetString(4), DateTimeOffset.Parse(r.GetString(5), CultureInfo.InvariantCulture), DateTimeOffset.Parse(r.GetString(6), CultureInfo.InvariantCulture));
     private static ClaimRecord ReadClaim(SqliteDataReader r) => new(r.GetInt64(0), r.GetInt64(1), r.GetString(2), Enum.Parse<RelationKind>(r.GetString(3), true), r.GetInt64(4), r.GetInt64(5), Enum.Parse<Polarity>(r.GetString(6), true), r.GetDouble(7), r.IsDBNull(8) ? null : r.GetDouble(8), r.IsDBNull(9) ? null : r.GetDouble(9), r.IsDBNull(10) ? null : r.GetInt64(10), r.IsDBNull(11) ? null : r.GetInt64(11), r.GetString(12), DateTimeOffset.Parse(r.GetString(13), CultureInfo.InvariantCulture), r.IsDBNull(14) ? null : DateTimeOffset.Parse(r.GetString(14), CultureInfo.InvariantCulture), r.IsDBNull(15) ? null : DateTimeOffset.Parse(r.GetString(15), CultureInfo.InvariantCulture), r.IsDBNull(16) ? null : DateTimeOffset.Parse(r.GetString(16), CultureInfo.InvariantCulture), Enum.Parse<ClaimStatus>(r.GetString(17), true));
+
+    private static async Task<(long Id, bool Created)> GetOrCreateEntityAsync(SqliteConnection c, SqliteTransaction t, string name, string className, string entityNamespace, DateTimeOffset now, CancellationToken token)
+    {
+        await using var find = c.CreateCommand();
+        find.Transaction = t;
+        find.CommandText = "SELECT id FROM entities WHERE canonical_name=$name AND class_name=$class AND namespace=$namespace ORDER BY id LIMIT 1";
+        find.Parameters.AddWithValue("$name", name);
+        find.Parameters.AddWithValue("$class", className);
+        find.Parameters.AddWithValue("$namespace", entityNamespace);
+        var existing = await find.ExecuteScalarAsync(token);
+        if (existing is long id) return (id, false);
+
+        await using var insert = c.CreateCommand();
+        insert.Transaction = t;
+        insert.CommandText = "INSERT INTO entities(class_name,canonical_name,namespace,created_at,updated_at) VALUES($class,$name,$namespace,$now,$now); SELECT last_insert_rowid();";
+        insert.Parameters.AddWithValue("$class", className);
+        insert.Parameters.AddWithValue("$name", name);
+        insert.Parameters.AddWithValue("$namespace", entityNamespace);
+        insert.Parameters.AddWithValue("$now", Format(now));
+        return ((long)(await insert.ExecuteScalarAsync(token) ?? 0L), true);
+    }
+
+    private static async Task<(long Id, bool Created)> GetOrCreateRememberRelationTypeAsync(SqliteConnection c, SqliteTransaction t, DateTimeOffset now, CancellationToken token)
+    {
+        await using var find = c.CreateCommand();
+        find.Transaction = t;
+        find.CommandText = "SELECT id FROM relation_types WHERE canonical_name='remembers'";
+        var existing = await find.ExecuteScalarAsync(token);
+        if (existing is long id) return (id, false);
+
+        await using var insert = c.CreateCommand();
+        insert.Transaction = t;
+        insert.CommandText = "INSERT INTO relation_types(canonical_name,category,directionality,allow_strength,freshness_policy,description,created_at,updated_at) VALUES('remembers','memory','directed',0,'permanent',$description,$now,$now); SELECT last_insert_rowid();";
+        insert.Parameters.AddWithValue("$description", "A conversation user explicitly requested that a textual fact be retained.");
+        insert.Parameters.AddWithValue("$now", Format(now));
+        return ((long)(await insert.ExecuteScalarAsync(token) ?? 0L), true);
+    }
+
+    private static async Task<long?> FindActiveRememberedClaimAsync(SqliteConnection c, SqliteTransaction t, long relationId, CancellationToken token)
+    {
+        await using var find = c.CreateCommand();
+        find.Transaction = t;
+        find.CommandText = "SELECT id FROM claims WHERE relation_id=$relation AND assertion_type='remembered_text' AND polarity='positive' AND status='active' ORDER BY id LIMIT 1";
+        find.Parameters.AddWithValue("$relation", relationId);
+        var existing = await find.ExecuteScalarAsync(token);
+        return existing is long id ? id : null;
+    }
 
     private static async Task<(long Id, RelationKind Kind, bool AllowStrength)?> GetRelationTypeAsync(SqliteConnection c, SqliteTransaction t, string name, CancellationToken token) { await using var q = c.CreateCommand(); q.Transaction = t; q.CommandText = "SELECT id,directionality,allow_strength FROM relation_types WHERE canonical_name=$name OR id IN(SELECT relation_type_id FROM relation_type_aliases WHERE alias=$name)"; q.Parameters.AddWithValue("$name", name); await using var r = await q.ExecuteReaderAsync(token); return await r.ReadAsync(token) ? (r.GetInt64(0), Enum.Parse<RelationKind>(r.GetString(1), true), r.GetBoolean(2)) : null; }
     private static async Task<bool> EntitiesExistAsync(SqliteConnection c, SqliteTransaction t, ClaimCandidate x, CancellationToken token) { await using var q = c.CreateCommand(); q.Transaction = t; q.CommandText = "SELECT COUNT(*) FROM entities WHERE id IN($s,$o,$k)"; q.Parameters.AddWithValue("$s", x.SubjectId); q.Parameters.AddWithValue("$o", x.ObjectId); q.Parameters.AddWithValue("$k", x.KnowledgeSubjectId ?? x.SubjectId); var expected = x.KnowledgeSubjectId is null || x.KnowledgeSubjectId == x.SubjectId || x.KnowledgeSubjectId == x.ObjectId ? 2 : 3; return Convert.ToInt32(await q.ExecuteScalarAsync(token), CultureInfo.InvariantCulture) == expected; }

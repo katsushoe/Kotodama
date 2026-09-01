@@ -23,6 +23,23 @@ public sealed class ClaudeHookCommandTests
     }
 
     [Fact]
+    public async Task RunAsync_UserPromptSubmitWithNaturalRememberRequest_RequiresKotodamaWrite()
+    {
+        const string prompt = "Windows版を配布するときはMSIを用意する必要があります。覚えておいて。";
+        using var input = new StringReader(JsonSerializer.Serialize(new { prompt }));
+        using var output = new StringWriter();
+
+        await ClaudeHookCommand.RunAsync("claude", "user-prompt-submit", input, output);
+
+        using var result = JsonDocument.Parse(output.ToString());
+        var context = result.RootElement.GetProperty("hookSpecificOutput").GetProperty("additionalContext").GetString();
+        context.Should().Contain("explicit request to persist")
+            .And.Contain("Do not satisfy the request with built-in memory")
+            .And.Contain("propose_claim");
+        prompt.Should().NotContain("Kotodama");
+    }
+
+    [Fact]
     public async Task RunAsync_StopFirstInvocation_BlocksForKnowledgeReview()
     {
         using var input = new StringReader("{\"stop_hook_active\":false}");
@@ -33,6 +50,7 @@ public sealed class ClaudeHookCommandTests
         using var result = JsonDocument.Parse(output.ToString());
         result.RootElement.GetProperty("decision").GetString().Should().Be("block");
         result.RootElement.GetProperty("reason").GetString().Should().Contain("durable, reusable facts");
+        result.RootElement.GetProperty("reason").GetString().Should().Contain("explicit Kotodama persistence intent");
     }
 
     [Fact]

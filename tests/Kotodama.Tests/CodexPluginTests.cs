@@ -38,6 +38,8 @@ public sealed class CodexPluginTests
 
         skill.Should().Contain("name: kotodama-knowledge")
             .And.Contain("kotodama-curator")
+            .And.Contain("explicitly asks to remember")
+            .And.Contain("built-in memory")
             .And.Contain("Do not store raw transcripts")
             .And.NotContain("[TODO:");
     }

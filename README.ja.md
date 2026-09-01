@@ -23,7 +23,7 @@ KotodamaをインストールしてMCPサーバーとして登録すると、MCP
 
 例えば、「ある人物が特定期間に組織へ所属していた」という知識を保持し、公式発表とそれに反する報告を両方保存したうえで、後から該当時点と根拠を伴って回答できます。Kotodamaが提供するのは知識の保存・検索Toolです。AIまたはMCPクライアントがToolを呼び出す必要があり、会話の自動取り込みやInternet上の知識の自動更新は行いません。
 
-KotodamaはMCP初期化時にServer Instructionsを返し、`use_kotodama` MCP Promptも提供します。`configure claude`と`configure codex`は各クライアントのHooksも設定し、回答前の検索と応答後の知識登録確認を自動化します。生の会話履歴は保存せず、AIが再利用可能と判断した、根拠のある構造化知識だけをMCP Tool経由で登録します。
+KotodamaはMCP初期化時にServer Instructionsを返し、`use_kotodama` MCP Promptも提供します。「覚えて」「記憶して」「今後参照して」等の明示依頼には、自然文を一回の呼び出しで保存する`remember_knowledge` Toolを提供します。`configure claude`と`configure codex`は各クライアントのHooksも設定し、回答前の検索と応答後の知識登録確認を自動化します。生の会話履歴は保存せず、AIが再利用可能と判断した、根拠のある知識だけをMCP Tool経由で登録します。
 
 Codex向けには`plugins/kotodama`にMCP接続と`kotodama-knowledge` Skillを含むプラグインを提供します。`configure codex`は`kotodama-curator`カスタムAgentもユーザースコープへ登録し、応答後の知識整理を分離Contextで実行できるようにします。Agentが利用不能な場合は親Agentが同じ確認を行います。
 
@@ -55,7 +55,7 @@ Claimは明示的な撤回で`active -> retracted`、`dream`で`active -> stale`
 - 情報が存在しない場合はfalseと断定せず、空の検索結果をunknownとして扱います。
 - Claimの有効期間、観測日時、最終確認日時、鮮度状態を保持します。
 - dreamは期限切れのClaimを否定せず、`active`から`stale`へ変更します。
-- stdioとStreamable HTTPによるMCPサーバーとして17個のToolを提供します。
+- stdioとStreamable HTTPによるMCPサーバーとして18個のToolを提供します。
 
 ## MSIインストーラーを使う場合
 
@@ -73,7 +73,7 @@ Start-Process msiexec.exe -Verb RunAs -Wait `
 
 Windows版の`Kotodama-<version>-win-x64.dxt`を取得し、Claude Desktopの`Settings > Extensions > Advanced settings > Install Extension...`から選択します。インストール時にKotodamaのデータディレクトリを指定してください。Claude DesktopはDXT内のKotodamaをstdio MCPサーバーとして起動します。
 
-DXTはMCP Tool、Server Instructions、`use_kotodama` Promptを提供します。Claude DesktopにはClaude Code用Hookとサブエージェントがないため、会話ごとの自動登録は保証されません。確実に知識登録を検討させる場合は、会話で`use_kotodama` Promptを選択してください。DXTを削除しても、指定したデータディレクトリは削除されません。
+DXTはMCP Tool、Server Instructions、`use_kotodama` Promptを提供します。明示的な記憶依頼では`remember_knowledge`を組み込みメモリより優先するようServer Instructionsで指示します。ただしClaude DesktopにはClaude Code用Hookとサブエージェントがないため、Tool選択はbest effortであり、自動登録は保証されません。確実に知識登録を検討させる場合は、会話で`use_kotodama` Promptを選択してください。DXTを削除しても、指定したデータディレクトリは削除されません。
 
 ## ZIP配布を使う場合
 
