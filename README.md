@@ -25,7 +25,7 @@ After the Kotodama application or its supported plugin or extension is installed
 
 For example, an AI can remember that a person belonged to an organization during a particular period, preserve both an official announcement and a conflicting report, and later answer with the applicable time and evidence. Kotodama provides storage and retrieval tools; the AI or MCP client must call those tools, and Kotodama does not automatically import conversations or update knowledge from the Internet.
 
-Kotodama supplies server instructions during MCP initialization and exposes the `use_kotodama` MCP prompt. Explicit requests such as "remember this" can be persisted in one call with the `remember_knowledge` tool, which is preferred over built-in memory by the server instructions. `configure claude` and `configure codex` also install client hooks that prompt knowledge retrieval before an answer and knowledge review after it. Raw transcripts are never stored. Directly supported facts may be selected even when their long-term usefulness is uncertain; dream gradually reduces confidence when they are not reconfirmed.
+Kotodama supplies server instructions during MCP initialization and exposes the `use_kotodama` MCP prompt. Explicit requests such as "remember this" can be persisted in one call with the `remember_knowledge` tool, which is preferred over built-in memory by the server instructions. Schedules and events can retain the original statement together with actor, place, time range, and event structure for retrieval through `query_events`. `configure claude` and `configure codex` also install client hooks that prompt knowledge retrieval before an answer and knowledge review after it. Raw transcripts are never stored. Directly supported facts may be selected even when their long-term usefulness is uncertain; dream gradually reduces confidence when they are not reconfirmed.
 
 For Codex, `plugins/kotodama` provides a plugin containing the MCP connection and the `kotodama-knowledge` skill. `configure codex` also installs the user-scoped `kotodama-curator` custom agent so post-response knowledge review can run in an isolated context. The parent agent performs the same review when the custom agent is unavailable.
 
@@ -76,7 +76,7 @@ Connect the MCP client to `http://127.0.0.1:39280/mcp`. When `KOTODAMA_HTTP_TOKE
 
 ## MCP tools
 
-`get_version`, `get_entity`, `search_entities`, `create_entity`, `create_relation_type`, `create_event`, `query_relations`, `query_claims`, `get_neighbors`, `get_knowledge_context`, `propose_claim`, `remember_knowledge`, `retract_claim`, and `run_dream`.
+`get_version`, `get_entity`, `search_entities`, `create_entity`, `create_relation_type`, `update_relation_type`, `delete_relation_type`, `create_event`, `query_events`, `query_relations`, `query_claims`, `get_neighbors`, `get_knowledge_context`, `propose_claim`, `remember_knowledge`, `retract_claim`, `reactivate_claim`, `delete_claim`, and `run_dream`.
 
 Administrative tools also support claim reactivation and explicit physical deletion, plus RelationType update and deletion. RelationTypes that are still referenced are not deleted. In HTTP mode, dream runs periodically (3600 seconds by default), daily logs are written under the deployment `logs` directory, and `kotodama backup <destination.db>` creates an online SQLite backup.
 

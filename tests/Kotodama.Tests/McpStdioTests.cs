@@ -87,7 +87,7 @@ public sealed class McpStdioTests : IAsyncLifetime
         tools.Select(x => x.Name).Should().BeEquivalentTo(
             "get_version", "get_entity", "search_entities", "propose_claim", "retract_claim", "reactivate_claim", "delete_claim",
             "query_claims", "query_relations", "get_neighbors", "get_knowledge_context",
-            "run_dream", "create_entity", "create_relation_type", "update_relation_type", "delete_relation_type", "create_event", "remember_knowledge");
+            "run_dream", "create_entity", "create_relation_type", "update_relation_type", "delete_relation_type", "create_event", "remember_knowledge", "query_events");
     }
 
     [Fact]
@@ -96,7 +96,7 @@ public sealed class McpStdioTests : IAsyncLifetime
         var result = await _client.CallToolAsync("get_version", cancellationToken: CancellationToken.None);
 
         result.IsError.Should().NotBeTrue();
-        GetResponseJson(result).Should().Contain("Kotodama").And.Contain("0.11.7");
+        GetResponseJson(result).Should().Contain("Kotodama").And.Contain("0.12.0");
     }
 
     [Fact]
@@ -134,6 +134,41 @@ public sealed class McpStdioTests : IAsyncLifetime
         GetResponseJson(remembered).Should().Contain("stored");
         using var document = JsonDocument.Parse(GetResponseJson(searched));
         document.RootElement.EnumerateArray().Select(x => x.GetProperty("canonicalName").GetString()).Should().Contain(text);
+    }
+
+    [Fact]
+    public async Task RememberKnowledge_ThroughStdio_PersistsAndQueriesStructuredEvent()
+    {
+        var suffix = Guid.NewGuid().ToString("N");
+        var actor = "部長" + suffix;
+        var remembered = await CallAsync("remember_knowledge", new Dictionary<string, object?>
+        {
+            ["input"] = new
+            {
+                text = "今週、部長が福岡に来る " + suffix,
+                @event = new
+                {
+                    actor,
+                    action = "visit",
+                    place = "福岡",
+                    startsAt = "2026-09-01T00:00:00+09:00",
+                    endsAt = "2026-09-07T00:00:00+09:00",
+                },
+            },
+        });
+        var queried = await CallAsync("query_events", new Dictionary<string, object?>
+        {
+            ["actor"] = actor,
+            ["from"] = "2026-09-03T00:00:00+09:00",
+            ["to"] = "2026-09-04T00:00:00+09:00",
+        });
+
+        GetResponseJson(remembered).Should().Contain("eventId");
+        using var document = JsonDocument.Parse(GetResponseJson(queried));
+        var eventRecord = document.RootElement.EnumerateArray().Should().ContainSingle().Which;
+        eventRecord.GetProperty("actor").GetString().Should().Be(actor);
+        eventRecord.GetProperty("place").GetString().Should().Be("福岡");
+        eventRecord.GetProperty("action").GetString().Should().Be("visit");
     }
 
     [Fact]

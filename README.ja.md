@@ -23,7 +23,7 @@ Kotodama本体または対応プラグイン／拡張をインストールして
 
 例えば、「ある人物が特定期間に組織へ所属していた」という知識を保持し、公式発表とそれに反する報告を両方保存したうえで、後から該当時点と根拠を伴って回答できます。Kotodamaが提供するのは知識の保存・検索Toolです。AIまたはMCPクライアントがToolを呼び出す必要があり、会話の自動取り込みやInternet上の知識の自動更新は行いません。
 
-KotodamaはMCP初期化時にServer Instructionsを返し、`use_kotodama` MCP Promptも提供します。「覚えて」「記憶して」「今後参照して」等の明示依頼には、自然文を一回の呼び出しで保存する`remember_knowledge` Toolを提供します。`configure claude`と`configure codex`は各クライアントのHooksも設定し、回答前の検索と応答後の知識登録確認を自動化します。生の会話履歴は保存せず、直接根拠がある事実は長期利用価値が不確かな場合も保存候補とし、未再確認の知識はdreamで段階的に薄れます。
+KotodamaはMCP初期化時にServer Instructionsを返し、`use_kotodama` MCP Promptも提供します。「覚えて」「記憶して」「今後参照して」等の明示依頼には、自然文を一回の呼び出しで保存する`remember_knowledge` Toolを提供します。予定や出来事は原文に加えてActor、Place、期間、Eventを保存でき、`query_events`で構造検索できます。`configure claude`と`configure codex`は各クライアントのHooksも設定し、回答前の検索と応答後の知識登録確認を自動化します。生の会話履歴は保存せず、直接根拠がある事実は長期利用価値が不確かな場合も保存候補とし、未再確認の知識はdreamで段階的に薄れます。
 
 Codex向けには`plugins/kotodama`にMCP接続と`kotodama-knowledge` Skillを含むプラグインを提供します。`configure codex`は`kotodama-curator`カスタムAgentもユーザースコープへ登録し、応答後の知識整理を分離Contextで実行できるようにします。Agentが利用不能な場合は親Agentが同じ確認を行います。
 
@@ -59,7 +59,7 @@ Claimは明示的な撤回で`active -> retracted`、`dream`で`active -> stale`
 - 情報が存在しない場合はfalseと断定せず、空の検索結果をunknownとして扱います。
 - Claimの有効期間、観測日時、最終確認日時、鮮度状態を保持します。
 - dreamは`remembers` Claimのconfidenceを段階的に減衰し、基準未満で`active`から`stale`へ変更します。
-- stdioとStreamable HTTPによるMCPサーバーとして18個のToolを提供します。
+- stdioとStreamable HTTPによるMCPサーバーとして19個のToolを提供します。
 
 ## MSIインストーラーを使う場合
 
