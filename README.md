@@ -72,7 +72,7 @@ $env:KOTODAMA_HTTP_TOKEN = "a sufficiently long random token"
 dotnet run --project src/Kotodama
 ```
 
-Connect the MCP client to `http://127.0.0.1:39280/mcp`. When `KOTODAMA_HTTP_TOKEN` is set, the client must send the same value as a Bearer token. HTTP mode remains restricted to loopback and does not provide per-user authorization. See [configuration](CONFIG.ja.md) and [ADR-0001](ADR-0001-STREAMABLE-HTTP.ja.md).
+Connect the MCP client to `http://127.0.0.1:39280/mcp`. When `KOTODAMA_HTTP_TOKEN` is set, the client must send the same value as a Bearer token. HTTP mode remains restricted to loopback and does not provide per-user authorization. See [configuration](CONFIG.ja.md).
 
 ## MCP tools
 
