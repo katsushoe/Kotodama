@@ -49,6 +49,8 @@ public sealed class McpStdioTests : IAsyncLifetime
         _client.ServerInstructions.Should().Contain("explicitly asks to remember");
         _client.ServerInstructions.Should().Contain("Do not substitute built-in memory");
         _client.ServerInstructions.Should().Contain("call remember_knowledge");
+        _client.ServerInstructions.Should().Contain("even if the user did not explicitly ask");
+        _client.ServerInstructions.Should().Contain("Do not merely acknowledge or summarize");
     }
 
     [Fact]
@@ -69,6 +71,7 @@ public sealed class McpStdioTests : IAsyncLifetime
         text.Should().Contain("propose_claim");
         text.Should().Contain("ask the user");
         text.Should().Contain("call remember_knowledge during the current turn");
+        text.Should().Contain("even when the user did not explicitly ask");
     }
 
     [Fact]

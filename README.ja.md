@@ -27,6 +27,8 @@ KotodamaはMCP初期化時にServer Instructionsを返し、`use_kotodama` MCP P
 
 Codex向けには`plugins/kotodama`にMCP接続と`kotodama-knowledge` Skillを含むプラグインを提供します。`configure codex`は`kotodama-curator`カスタムAgentもユーザースコープへ登録し、応答後の知識整理を分離Contextで実行できるようにします。Agentが利用不能な場合は親Agentが同じ確認を行います。
 
+自動登録方式はクライアントごとに異なります。Claude CodeとCodexでは応答完了Hookが、明示的な記憶依頼がない通常の会話も知識候補として確認します。ユーザーの事実記述または識別済みSourceで裏付けられた知識だけを登録し、会話本文や根拠のないAI生成文は保存しません。Claude Desktopは会話Hookを提供しないため、Server Instructionsによるbest effort対応です。
+
 ## Kotodamaのデータモデル
 
 ```text
@@ -73,7 +75,7 @@ Start-Process msiexec.exe -Verb RunAs -Wait `
 
 Windows版の`Kotodama-<version>-win-x64.dxt`を取得し、Claude Desktopの`Settings > Extensions > Advanced settings > Install Extension...`から選択します。インストール時にKotodamaのデータディレクトリを指定してください。Claude DesktopはDXT内のKotodamaをstdio MCPサーバーとして起動します。
 
-DXTはMCP Tool、Server Instructions、`use_kotodama` Promptを提供します。明示的な記憶依頼では`remember_knowledge`を組み込みメモリより優先するようServer Instructionsで指示します。ただしClaude DesktopにはClaude Code用Hookとサブエージェントがないため、Tool選択はbest effortであり、自動登録は保証されません。確実に知識登録を検討させる場合は、会話で`use_kotodama` Promptを選択してください。DXTを削除しても、指定したデータディレクトリは削除されません。
+DXTはMCP Tool、Server Instructions、`use_kotodama` Promptを提供します。Server Instructionsは、明示的な記憶依頼がない通常の会話でも、直接裏付けられた永続的で再利用可能な事実を検出した場合に`remember_knowledge`を呼ぶよう指示します。ただしClaude DesktopにはClaude Code用Hookとサブエージェントがないため、Tool選択はbest effortであり、自動登録は保証されません。確実に知識登録を検討させる場合は、会話で`use_kotodama` Promptを選択してください。DXTを削除しても、指定したデータディレクトリは削除されません。
 
 ## ZIP配布を使う場合
 

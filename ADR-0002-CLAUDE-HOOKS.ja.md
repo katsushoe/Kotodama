@@ -10,13 +10,13 @@ MCP Server InstructionsとPromptの採用はクライアントに依存するた
 
 ## Decision
 
-Claude CodeとCodexのユーザースコープ`UserPromptSubmit` Hookから回答前の検索指針を追加し、`Stop` Hookから主エージェントへ永続化候補の確認を一度だけ要求します。知識の意味判断とMCP Tool呼び出しは主エージェントが行い、HookやKotodama DBは生の会話履歴を保存しません。
+Claude CodeとCodexのユーザースコープ`UserPromptSubmit` Hookから回答前の検索指針を追加し、`Stop` Hookから主エージェントへ、明示的な記憶依頼の有無にかかわらず永続化候補の確認を一度だけ要求します。知識の意味判断とMCP Tool呼び出しは主エージェントまたは知識整理Agentが行い、HookやKotodama DBは生の会話履歴を保存しません。ユーザーの事実記述または識別済みSourceで直接裏付けられた知識だけを登録対象とし、SourceのないAI生成文は根拠として扱いません。
 
 Claude Codeは`Stop`入力の`stop_hook_active`、Codexはセッション単位の一時再入マーカーにより、継続要求を一度に制限します。Hook障害はクライアントの標準的な非ブロッキングHookエラーとして扱い、認証情報、秘密情報、推測、未承認の機微な個人情報は登録対象外とします。
 
 `UserPromptSubmit` Hookは「覚えておいて」等の明示的な永続化意図を検出した場合、内蔵メモリ、読み込み済み文書、応答だけで代替せず、そのターン中にKotodamaを検索して未登録ならClaimを登録する指針を追加します。同等のactive Claimがすでに存在する場合は重複登録せず、登録済みと回答します。
 
-Server InstructionsとMCP Promptは、Hooksを無効化した環境や未対応クライアント向けの標準MCPフォールバックとして維持します。
+Server InstructionsとMCP Promptは、Hooksを無効化した環境や未対応クライアント向けの標準MCPフォールバックとして維持します。Claude Desktopは会話Hookを提供しないため、このフォールバックによるbest effort対応とし、自動登録を保証しません。
 
 ## 代替案と不採用理由
 

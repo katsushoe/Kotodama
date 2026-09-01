@@ -43,4 +43,16 @@ public sealed class CodexPluginTests
             .And.Contain("Do not store raw transcripts")
             .And.NotContain("[TODO:");
     }
+
+    [Fact]
+    public void CuratorAgent_RequiresImplicitReviewAndRejectsUnsupportedAssistantText()
+    {
+        var agent = File.ReadAllText(Path.Combine(PluginDirectory, "assets", "kotodama-curator.toml"));
+
+        agent.Should().Contain("even when the user did not explicitly ask")
+            .And.Contain("user's factual text or an identified source")
+            .And.Contain("assistant-generated text without an identified source")
+            .And.Contain("pass only that factual statement without rewriting it")
+            .And.Contain("Do not store raw conversation transcripts");
+    }
 }
