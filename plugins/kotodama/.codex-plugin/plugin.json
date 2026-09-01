@@ -1,9 +1,9 @@
 {
   "name": "kotodama",
-  "version": "0.11.7",
+  "version": "0.12.0",
   "description": "Persistent temporal and source-aware knowledge for Codex",
   "author": {
-    "name": "AkatsukiSoft",
+    "name": "Akatsukisoft",
     "url": "https://github.com/katsushoe"
   },
   "homepage": "https://github.com/katsushoe/Kotodama",
@@ -15,7 +15,7 @@
     "displayName": "Kotodama",
     "shortDescription": "Retain structured knowledge across Codex tasks.",
     "longDescription": "Search and maintain durable knowledge with sources, confidence, temporal validity, and freshness through the local Kotodama MCP server.",
-    "developerName": "AkatsukiSoft",
+    "developerName": "Akatsukisoft",
     "category": "Productivity",
     "capabilities": ["Read", "Write"],
     "websiteURL": "https://github.com/katsushoe/Kotodama",

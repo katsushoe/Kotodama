@@ -19,22 +19,47 @@ public sealed class InstallerDefinitionTests
     }
 
     [Fact]
-    public void Package_UpgradeStopsScheduledTaskBeforeFileValidation()
+    public void Package_AllowsReinstallingSameVersionBuilds()
+    {
+        var document = XDocument.Load(PackagePath);
+        var wix = XNamespace.Get("http://wixtoolset.org/schemas/v4/wxs");
+
+        var majorUpgrade = document.Descendants(wix + "MajorUpgrade").Single();
+        majorUpgrade.Attribute("AllowSameVersionUpgrades")?.Value.Should().Be("yes");
+        majorUpgrade.Attribute("Schedule")?.Value.Should().Be("afterInstallInitialize");
+    }
+
+    [Fact]
+    public void Package_UpgradeStopsTaskAndProcessesBeforeFileValidation()
     {
         var document = XDocument.Load(PackagePath);
         var wix = XNamespace.Get("http://wixtoolset.org/schemas/v4/wxs");
 
         var action = document.Descendants(wix + "CustomAction")
             .Single(element => (string?)element.Attribute("Id") == "StopKotodamaTask");
-        var sequence = document.Descendants(wix + "InstallExecuteSequence")
-            .Elements(wix + "Custom")
-            .Single(element => (string?)element.Attribute("Action") == "StopKotodamaTask");
+        var processAction = document.Descendants(wix + "CustomAction")
+            .Single(element => (string?)element.Attribute("Id") == "StopKotodamaProcesses");
 
         action.Attribute("ExeCommand")?.Value.Should().Contain("schtasks.exe")
             .And.Contain("/End")
             .And.Contain("Kotodama MCP Server");
         action.Attribute("Return")?.Value.Should().Be("ignore");
-        sequence.Attribute("Before")?.Value.Should().Be("InstallValidate");
-        sequence.Attribute("Condition")?.Value.Should().Be("NOT REMOVE~=\"ALL\"");
+        action.Attribute("Execute")?.Value.Should().Be("immediate");
+        processAction.Attribute("ExeCommand")?.Value.Should().Contain("taskkill.exe")
+            .And.Contain("/F")
+            .And.Contain("/IM")
+            .And.Contain("Kotodama.exe");
+        processAction.Attribute("Return")?.Value.Should().Be("ignore");
+        processAction.Attribute("Execute")?.Value.Should().Be("immediate");
+        document.Descendants(wix + "InstallUISequence").Should().BeEmpty();
+
+        var sequence = document.Descendants(wix + "InstallExecuteSequence").Single();
+        sequence.Elements(wix + "Custom")
+            .Single(element => (string?)element.Attribute("Action") == "StopKotodamaTask")
+            .Attribute("Before")?.Value.Should().Be("StopKotodamaProcesses");
+        var processSequence = sequence.Elements(wix + "Custom")
+            .Single(element => (string?)element.Attribute("Action") == "StopKotodamaProcesses");
+        processSequence.Attribute("Before")?.Value.Should().Be("InstallValidate");
+        processSequence.Attribute("Condition")?.Value.Should().Be("NOT REMOVE~=\"ALL\"");
     }
 }
