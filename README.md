@@ -1,6 +1,6 @@
 # Kotodama
 
-SQLite based temporal, epistemic and weighted Knowledge Graph MCP server for AI agents.
+Local AI knowledge infrastructure combining a temporal, epistemic, weighted SQLite Knowledge Graph MCP server with Codex and Claude integrations.
 
 Japanese documentation: [README.ja.md](README.ja.md)
 
@@ -8,13 +8,13 @@ Documentation index: [DOCUMENTS.ja.md](DOCUMENTS.ja.md)
 
 ## Overview
 
-Kotodama is a local MCP server that gives AI agents a persistent knowledge graph backed by SQLite. It stores not only relationships between entities, but also who asserted them, their sources, confidence, validity periods, observation and confirmation times, and freshness. Conflicting positive and negative claims coexist instead of overwriting each other, and an absent claim means unknown rather than false.
+Kotodama combines a local SQLite-backed Knowledge Graph MCP server with client integrations that help AI agents safely register and retrieve durable knowledge from natural conversation. It provides a Codex plugin, skill, curator agent, and hooks; MCP configuration and hooks for Claude Code; and a DXT extension for Claude Desktop. The core server runs over stdio or Streamable HTTP and stores not only relationships between entities, but also who asserted them, their sources, confidence, validity periods, observation and confirmation times, and freshness. Conflicting positive and negative claims coexist instead of overwriting each other, and an absent claim means unknown rather than false.
 
-Clients communicate with Kotodama over MCP stdio or opt-in Streamable HTTP to create entities and relation types, propose or retract claims, record events, and query knowledge by entity, relation type, or point in time. The `dream` process periodically marks claims whose currentness can no longer be assumed as `stale`; it does not rewrite them as false or change their confidence.
+Clients communicate with Kotodama over MCP stdio or opt-in Streamable HTTP to create entities and relation types, propose or retract claims, record events, and query knowledge by entity, relation type, or point in time. For remembered natural-language facts, `dream` reduces confidence to 80% after each unconfirmed 30-day period and marks the Claim `stale` below 0.2. Other expiring Claim types retain the existing direct stale transition. Dream never rewrites a Claim as false or physically deletes it.
 
 ## What an AI gains from Kotodama
 
-After Kotodama is installed and registered as an MCP server, an MCP-capable AI can use its tools to:
+After the Kotodama application or its supported plugin or extension is installed and configured for an AI client, the AI can use its tools to:
 
 - retain structured knowledge across tasks and sessions instead of relying only on the current conversation;
 - retrieve facts together with their source, confidence, knowledge subject, and valid time;
@@ -25,9 +25,11 @@ After Kotodama is installed and registered as an MCP server, an MCP-capable AI c
 
 For example, an AI can remember that a person belonged to an organization during a particular period, preserve both an official announcement and a conflicting report, and later answer with the applicable time and evidence. Kotodama provides storage and retrieval tools; the AI or MCP client must call those tools, and Kotodama does not automatically import conversations or update knowledge from the Internet.
 
-Kotodama supplies server instructions during MCP initialization and exposes the `use_kotodama` MCP prompt. Explicit requests such as "remember this" can be persisted in one call with the `remember_knowledge` tool, which is preferred over built-in memory by the server instructions. `configure claude` and `configure codex` also install client hooks that prompt knowledge retrieval before an answer and knowledge review after it. Raw transcripts are never stored; only supported, reusable knowledge selected by the AI is written through MCP tools.
+Kotodama supplies server instructions during MCP initialization and exposes the `use_kotodama` MCP prompt. Explicit requests such as "remember this" can be persisted in one call with the `remember_knowledge` tool, which is preferred over built-in memory by the server instructions. `configure claude` and `configure codex` also install client hooks that prompt knowledge retrieval before an answer and knowledge review after it. Raw transcripts are never stored. Directly supported facts may be selected even when their long-term usefulness is uncertain; dream gradually reduces confidence when they are not reconfirmed.
 
 For Codex, `plugins/kotodama` provides a plugin containing the MCP connection and the `kotodama-knowledge` skill. `configure codex` also installs the user-scoped `kotodama-curator` custom agent so post-response knowledge review can run in an isolated context. The parent agent performs the same review when the custom agent is unavailable.
+
+After a new database write succeeds, the AI reports the exact sentence `Kotodamaに記録しました` to the user. It does not use this success notice for an existing duplicate, skipped write, pending confirmation, rejection, or failure.
 
 ## Data model
 
@@ -78,7 +80,7 @@ Connect the MCP client to `http://127.0.0.1:39280/mcp`. When `KOTODAMA_HTTP_TOKE
 
 Administrative tools also support claim reactivation and explicit physical deletion, plus RelationType update and deletion. RelationTypes that are still referenced are not deleted. In HTTP mode, dream runs periodically (3600 seconds by default), daily logs are written under the deployment `logs` directory, and `kotodama backup <destination.db>` creates an online SQLite backup.
 
-The storage model preserves conflicting positive and negative claims, distinguishes Source from knowledge subject, normalizes symmetric edges, supports temporal querying, and marks expired currentness as `stale` without changing confidence.
+The storage model preserves conflicting positive and negative claims, distinguishes Source from knowledge subject, normalizes symmetric edges, supports temporal querying, and gradually reduces unconfirmed remembered knowledge before excluding it as `stale` from default queries.
 
 ## Installation
 

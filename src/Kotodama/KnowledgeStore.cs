@@ -6,6 +6,10 @@ namespace Kotodama;
 /// <summary>SQLite Knowledge Graph の永続化と検索を提供します。</summary>
 public sealed class KnowledgeStore
 {
+    internal const long RememberRefreshAfterSeconds = 2_592_000;
+    internal const double RememberDecayFactor = 0.8;
+    internal const double RememberStaleThreshold = 0.2;
+
     private readonly string _connectionString;
     private readonly TimeProvider _timeProvider;
     private readonly DreamTempStore _dreamTempStore;
@@ -35,6 +39,12 @@ public sealed class KnowledgeStore
         await using var command = connection.CreateCommand();
         command.CommandText = Schema;
         await command.ExecuteNonQueryAsync(cancellationToken);
+
+        await using var migration = connection.CreateCommand();
+        migration.CommandText = "UPDATE relation_types SET freshness_policy='periodic',refresh_after_seconds=$refresh,updated_at=$now WHERE canonical_name='remembers' AND freshness_policy='permanent' AND refresh_after_seconds IS NULL";
+        migration.Parameters.AddWithValue("$refresh", RememberRefreshAfterSeconds);
+        migration.Parameters.AddWithValue("$now", Format(Now()));
+        await migration.ExecuteNonQueryAsync(cancellationToken);
     }
 
     /// <summary>Entity を登録します。</summary>
@@ -130,9 +140,10 @@ public sealed class KnowledgeStore
         var (statementId, statementCreated) = await GetOrCreateEntityAsync(connection, transaction, text, "Statement", input.Namespace, now, cancellationToken);
         var (relationTypeId, relationTypeCreated) = await GetOrCreateRememberRelationTypeAsync(connection, transaction, now, cancellationToken);
         var relationId = await GetOrCreateRelationAsync(connection, transaction, relationTypeId, RelationKind.Directed, subjectId, statementId, cancellationToken);
-        var existingClaimId = await FindActiveRememberedClaimAsync(connection, transaction, relationId, cancellationToken);
+        var existingClaimId = await FindRememberedClaimAsync(connection, transaction, relationId, cancellationToken);
         if (existingClaimId is not null)
         {
+            await ReconfirmRememberedClaimAsync(connection, transaction, existingClaimId.Value, input.Confidence, now, cancellationToken);
             await transaction.CommitAsync(cancellationToken);
             return new(true, "already_stored", subjectId, statementId, existingClaimId.Value, Convert.ToInt32(subjectCreated) + Convert.ToInt32(statementCreated), relationTypeCreated);
         }
@@ -270,14 +281,15 @@ public sealed class KnowledgeStore
     }
 
     /// <summary>Relation/Claim を条件検索します。該当なしは Open World の unknown を表します。</summary>
-    public async Task<IReadOnlyList<ClaimRecord>> QueryClaimsAsync(long? entityId = null, string? relationType = null, DateTimeOffset? validAt = null, bool includeRetracted = false, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<ClaimRecord>> QueryClaimsAsync(long? entityId = null, string? relationType = null, DateTimeOffset? validAt = null, bool includeRetracted = false, bool includeStale = false, CancellationToken cancellationToken = default)
     {
         await using var connection = await OpenAsync(cancellationToken);
         await using var command = connection.CreateCommand();
-        command.CommandText = QuerySql + " WHERE ($entity IS NULL OR d.subject_id=$entity OR d.object_id=$entity OR s.entity_a_id=$entity OR s.entity_b_id=$entity) AND ($type IS NULL OR rt.canonical_name=$type) AND ($include=1 OR c.status<>'retracted') AND ($at IS NULL OR (c.valid_from IS NULL OR c.valid_from<=$at) AND (c.valid_to IS NULL OR c.valid_to>$at)) ORDER BY c.id";
+        command.CommandText = QuerySql + " WHERE ($entity IS NULL OR d.subject_id=$entity OR d.object_id=$entity OR s.entity_a_id=$entity OR s.entity_b_id=$entity) AND ($type IS NULL OR rt.canonical_name=$type) AND ($retracted=1 OR c.status<>'retracted') AND ($stale=1 OR c.status<>'stale') AND ($at IS NULL OR (c.valid_from IS NULL OR c.valid_from<=$at) AND (c.valid_to IS NULL OR c.valid_to>$at)) ORDER BY c.id";
         command.Parameters.AddWithValue("$entity", (object?)entityId ?? DBNull.Value);
         command.Parameters.AddWithValue("$type", (object?)relationType ?? DBNull.Value);
-        command.Parameters.AddWithValue("$include", includeRetracted ? 1 : 0);
+        command.Parameters.AddWithValue("$retracted", includeRetracted ? 1 : 0);
+        command.Parameters.AddWithValue("$stale", includeStale ? 1 : 0);
         command.Parameters.AddWithValue("$at", validAt is null ? DBNull.Value : Format(validAt.Value));
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         var results = new List<ClaimRecord>();
@@ -301,9 +313,15 @@ public sealed class KnowledgeStore
             await using var transaction = connection.BeginTransaction(deferred: false);
             await using var command = connection.CreateCommand();
             command.Transaction = transaction;
+            await using var reducedStaleCommand = connection.CreateCommand();
+            reducedStaleCommand.Transaction = transaction;
+            reducedStaleCommand.CommandText = "SELECT COUNT(*) FROM dream_updates d JOIN claims c ON c.id=d.claim_id WHERE c.status='active' AND d.target_status='stale' AND d.target_confidence<c.claim_confidence AND d.expected_updated_at=c.updated_at";
+            var reducedStale = Convert.ToInt32(await reducedStaleCommand.ExecuteScalarAsync(cancellationToken), CultureInfo.InvariantCulture);
+
             command.CommandText = """
                 UPDATE claims
-                SET status = 'stale',
+                SET claim_confidence = (SELECT d.target_confidence FROM dream_updates d WHERE d.claim_id = claims.id),
+                    status = 'stale',
                     updated_at = (SELECT d.target_updated_at FROM dream_updates d WHERE d.claim_id = claims.id)
                 WHERE status = 'active'
                   AND EXISTS (
@@ -315,9 +333,25 @@ public sealed class KnowledgeStore
                   )
                 """;
             var stale = await command.ExecuteNonQueryAsync(cancellationToken);
+
+            command.CommandText = """
+                UPDATE claims
+                SET claim_confidence = (SELECT d.target_confidence FROM dream_updates d WHERE d.claim_id = claims.id),
+                    updated_at = (SELECT d.target_updated_at FROM dream_updates d WHERE d.claim_id = claims.id)
+                WHERE status = 'active'
+                  AND EXISTS (
+                      SELECT 1
+                      FROM dream_updates d
+                      WHERE d.claim_id = claims.id
+                        AND d.target_status = 'active'
+                        AND d.target_confidence < claims.claim_confidence
+                        AND d.expected_updated_at = claims.updated_at
+                  )
+                """;
+            var reducedActive = await command.ExecuteNonQueryAsync(cancellationToken);
             await _dreamExecutionHook.AfterUpdateAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
-            return new(examined, stale, now);
+            return new(examined, stale, now) { ReducedConfidence = reducedStale + reducedActive };
         }
         finally
         {
@@ -341,16 +375,28 @@ public sealed class KnowledgeStore
                 claim_id INTEGER PRIMARY KEY,
                 expected_updated_at TEXT NOT NULL,
                 target_status TEXT NOT NULL CHECK(target_status IN ('active', 'stale')),
+                target_confidence REAL NOT NULL CHECK(target_confidence BETWEEN 0 AND 1),
                 target_updated_at TEXT NOT NULL
             );
 
-            INSERT INTO dream_updates(claim_id, expected_updated_at, target_status, target_updated_at)
+            INSERT INTO dream_updates(claim_id, expected_updated_at, target_status, target_confidence, target_updated_at)
             SELECT c.id,
                    c.updated_at,
                    CASE
+                       WHEN rt.canonical_name = 'remembers'
+                            AND unixepoch($now) - unixepoch(c.updated_at) > rt.refresh_after_seconds
+                            AND c.claim_confidence * $decay < $stale_threshold
+                           THEN 'stale'
                        WHEN unixepoch($now) - unixepoch(COALESCE(c.last_confirmed_at, c.observed_at)) > rt.refresh_after_seconds
+                            AND rt.canonical_name <> 'remembers'
                            THEN 'stale'
                        ELSE 'active'
+                   END,
+                   CASE
+                       WHEN rt.canonical_name = 'remembers'
+                            AND unixepoch($now) - unixepoch(c.updated_at) > rt.refresh_after_seconds
+                           THEN c.claim_confidence * $decay
+                       ELSE c.claim_confidence
                    END,
                    $now
             FROM claims c
@@ -361,6 +407,8 @@ public sealed class KnowledgeStore
               AND rt.refresh_after_seconds IS NOT NULL;
             """;
         command.Parameters.AddWithValue("$now", Format(now));
+        command.Parameters.AddWithValue("$decay", RememberDecayFactor);
+        command.Parameters.AddWithValue("$stale_threshold", RememberStaleThreshold);
         await command.ExecuteNonQueryAsync(token);
     }
 
@@ -417,20 +465,32 @@ public sealed class KnowledgeStore
 
         await using var insert = c.CreateCommand();
         insert.Transaction = t;
-        insert.CommandText = "INSERT INTO relation_types(canonical_name,category,directionality,allow_strength,freshness_policy,description,created_at,updated_at) VALUES('remembers','memory','directed',0,'permanent',$description,$now,$now); SELECT last_insert_rowid();";
+        insert.CommandText = "INSERT INTO relation_types(canonical_name,category,directionality,allow_strength,freshness_policy,refresh_after_seconds,description,created_at,updated_at) VALUES('remembers','memory','directed',0,'periodic',$refresh,$description,$now,$now); SELECT last_insert_rowid();";
+        insert.Parameters.AddWithValue("$refresh", RememberRefreshAfterSeconds);
         insert.Parameters.AddWithValue("$description", "A conversation user explicitly requested that a textual fact be retained.");
         insert.Parameters.AddWithValue("$now", Format(now));
         return ((long)(await insert.ExecuteScalarAsync(token) ?? 0L), true);
     }
 
-    private static async Task<long?> FindActiveRememberedClaimAsync(SqliteConnection c, SqliteTransaction t, long relationId, CancellationToken token)
+    private static async Task<long?> FindRememberedClaimAsync(SqliteConnection c, SqliteTransaction t, long relationId, CancellationToken token)
     {
         await using var find = c.CreateCommand();
         find.Transaction = t;
-        find.CommandText = "SELECT id FROM claims WHERE relation_id=$relation AND assertion_type='remembered_text' AND polarity='positive' AND status='active' ORDER BY id LIMIT 1";
+        find.CommandText = "SELECT id FROM claims WHERE relation_id=$relation AND assertion_type='remembered_text' AND polarity='positive' AND status<>'retracted' ORDER BY id LIMIT 1";
         find.Parameters.AddWithValue("$relation", relationId);
         var existing = await find.ExecuteScalarAsync(token);
         return existing is long id ? id : null;
+    }
+
+    private static async Task ReconfirmRememberedClaimAsync(SqliteConnection c, SqliteTransaction t, long claimId, double confidence, DateTimeOffset now, CancellationToken token)
+    {
+        await using var update = c.CreateCommand();
+        update.Transaction = t;
+        update.CommandText = "UPDATE claims SET claim_confidence=MAX(claim_confidence,$confidence),status='active',last_confirmed_at=$now,updated_at=$now WHERE id=$id";
+        update.Parameters.AddWithValue("$id", claimId);
+        update.Parameters.AddWithValue("$confidence", confidence);
+        update.Parameters.AddWithValue("$now", Format(now));
+        await update.ExecuteNonQueryAsync(token);
     }
 
     private static async Task<(long Id, RelationKind Kind, bool AllowStrength)?> GetRelationTypeAsync(SqliteConnection c, SqliteTransaction t, string name, CancellationToken token) { await using var q = c.CreateCommand(); q.Transaction = t; q.CommandText = "SELECT id,directionality,allow_strength FROM relation_types WHERE canonical_name=$name OR id IN(SELECT relation_type_id FROM relation_type_aliases WHERE alias=$name)"; q.Parameters.AddWithValue("$name", name); await using var r = await q.ExecuteReaderAsync(token); return await r.ReadAsync(token) ? (r.GetInt64(0), Enum.Parse<RelationKind>(r.GetString(1), true), r.GetBoolean(2)) : null; }

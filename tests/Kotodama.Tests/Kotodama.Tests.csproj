@@ -9,6 +9,7 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="../../desktop-extension/manifest.json" Link="desktop-extension/manifest.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../installer/Package.wxs" Link="installer/Package.wxs" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../plugins/kotodama/.codex-plugin/plugin.json" Link="codex-plugin/plugin.json" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../plugins/kotodama/.mcp.json" Link="codex-plugin/.mcp.json" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../plugins/kotodama/assets/kotodama-curator.toml" Link="codex-plugin/assets/kotodama-curator.toml" CopyToOutputDirectory="PreserveNewest" />

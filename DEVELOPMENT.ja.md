@@ -28,9 +28,9 @@ dotnet publish src/Kotodama/Kotodama.csproj `
 $publishDir = (Resolve-Path artifacts/publish/win-x64).Path
 .tools/wix build installer/Package.wxs `
   -arch x64 `
-  -d ProductVersion=0.11.4 `
+  -d ProductVersion=0.11.7 `
   -d PublishDir=$publishDir `
-  -o artifacts/release/Kotodama-0.11.4-x64.msi
+  -o artifacts/release/Kotodama-0.11.7-x64.msi
 ```
 
 ## Claude Desktop Extension生成

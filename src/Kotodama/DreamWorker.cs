@@ -17,7 +17,7 @@ internal sealed class DreamWorker(KnowledgeStore store, TimeProvider timeProvide
             try
             {
                 var result = await store.RunDreamAsync(stoppingToken);
-                logger.LogInformation("dream completed: examined={Examined}, marked_stale={MarkedStale}", result.Examined, result.MarkedStale);
+                logger.LogInformation("dream completed: examined={Examined}, reduced_confidence={ReducedConfidence}, marked_stale={MarkedStale}", result.Examined, result.ReducedConfidence, result.MarkedStale);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {

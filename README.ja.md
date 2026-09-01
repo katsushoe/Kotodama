@@ -1,18 +1,18 @@
 # Kotodama
 
-Kotodamaは、AIエージェント向けの時間・認識主体・重みを扱えるSQLite Knowledge Graph MCPサーバーです。
+Kotodamaは、時間・認識主体・重みを扱えるSQLite Knowledge Graph MCPサーバーを中核に、Codex／Claude向けプラグイン、Hooks、Agent、DXT拡張を提供するAI知識基盤です。
 
 ## Kotodamaの概要
 
-Kotodamaは、AIエージェントが利用する知識をローカルのSQLiteへ永続化し、MCP stdioまたはStreamable HTTP経由で登録・検索するサーバーです。Entity間の関係だけでなく、その関係を誰がどのSourceに基づいて主張したか、確信度、有効期間、観測日時、最終確認日時、鮮度も保持します。
+Kotodamaは、AIエージェントが利用する知識をローカルのSQLiteへ永続化するMCPサーバーと、AIがその知識を自然な会話から安全に登録・検索するためのクライアント連携機能をまとめて提供します。Codexにはプラグイン、Skill、curator Agent、Hooksを、Claude CodeにはMCP設定とHooksを、Claude DesktopにはDXT拡張を提供します。中核のMCPサーバーはstdioまたはStreamable HTTPで動作し、Entity間の関係だけでなく、その関係を誰がどのSourceに基づいて主張したか、確信度、有効期間、観測日時、最終確認日時、鮮度も保持します。
 
-同じ関係について肯定と否定、複数のSource、異なる確信度を上書きせず共存させます。検索結果が空であることは「未知」を意味し、「偽」とは断定しません。定期処理`dream`は現在性を保証できなくなったClaimを`stale`にしますが、偽への変更や確信度の書き換えは行いません。
+同じ関係について肯定と否定、複数のSource、異なる確信度を上書きせず共存させます。検索結果が空であることは「未知」を意味し、「偽」とは断定しません。定期処理`dream`は、自然文から保存した知識が30日間再確認されないごとにconfidenceを80%へ減衰し、0.2未満で`stale`にします。偽への変更や物理削除は行いません。
 
 MCPクライアントはEntityとRelationTypeの作成、Claimの提案・撤回、Eventの記録、Entity・RelationType・時点を条件とした知識検索を行えます。
 
 ## KotodamaでAIができること
 
-KotodamaをインストールしてMCPサーバーとして登録すると、MCP対応AIはKotodamaのToolを使って次のことができます。
+Kotodama本体または対応プラグイン／拡張をインストールしてAIクライアントへ設定すると、AIはKotodamaのToolを使って次のことができます。
 
 - 現在の会話だけに依存せず、複数のタスクやセッションをまたいで構造化された知識を保持できます。
 - 事実だけでなく、Source、確信度、認識主体、有効な時点を併せて取得できます。
@@ -23,11 +23,13 @@ KotodamaをインストールしてMCPサーバーとして登録すると、MCP
 
 例えば、「ある人物が特定期間に組織へ所属していた」という知識を保持し、公式発表とそれに反する報告を両方保存したうえで、後から該当時点と根拠を伴って回答できます。Kotodamaが提供するのは知識の保存・検索Toolです。AIまたはMCPクライアントがToolを呼び出す必要があり、会話の自動取り込みやInternet上の知識の自動更新は行いません。
 
-KotodamaはMCP初期化時にServer Instructionsを返し、`use_kotodama` MCP Promptも提供します。「覚えて」「記憶して」「今後参照して」等の明示依頼には、自然文を一回の呼び出しで保存する`remember_knowledge` Toolを提供します。`configure claude`と`configure codex`は各クライアントのHooksも設定し、回答前の検索と応答後の知識登録確認を自動化します。生の会話履歴は保存せず、AIが再利用可能と判断した、根拠のある知識だけをMCP Tool経由で登録します。
+KotodamaはMCP初期化時にServer Instructionsを返し、`use_kotodama` MCP Promptも提供します。「覚えて」「記憶して」「今後参照して」等の明示依頼には、自然文を一回の呼び出しで保存する`remember_knowledge` Toolを提供します。`configure claude`と`configure codex`は各クライアントのHooksも設定し、回答前の検索と応答後の知識登録確認を自動化します。生の会話履歴は保存せず、直接根拠がある事実は長期利用価値が不確かな場合も保存候補とし、未再確認の知識はdreamで段階的に薄れます。
 
 Codex向けには`plugins/kotodama`にMCP接続と`kotodama-knowledge` Skillを含むプラグインを提供します。`configure codex`は`kotodama-curator`カスタムAgentもユーザースコープへ登録し、応答後の知識整理を分離Contextで実行できるようにします。Agentが利用不能な場合は親Agentが同じ確認を行います。
 
 自動登録方式はクライアントごとに異なります。Claude CodeとCodexでは応答完了Hookが、明示的な記憶依頼がない通常の会話も知識候補として確認します。ユーザーの事実記述または識別済みSourceで裏付けられた知識だけを登録し、会話本文や根拠のないAI生成文は保存しません。Claude Desktopは会話Hookを提供しないため、Server Instructionsによるbest effort対応です。
+
+DBへの新規記録が成功した場合、AIは利用者へ`Kotodamaに記録しました`と通知します。既存知識との重複、登録見送り、確認待ち、拒否、失敗では、この成功通知を表示しません。
 
 ## Kotodamaのデータモデル
 
@@ -56,7 +58,7 @@ Claimは明示的な撤回で`active -> retracted`、`dream`で`active -> stale`
 - 同じRelationに対する肯定Claimと否定Claimを競合情報として共存させます。
 - 情報が存在しない場合はfalseと断定せず、空の検索結果をunknownとして扱います。
 - Claimの有効期間、観測日時、最終確認日時、鮮度状態を保持します。
-- dreamは期限切れのClaimを否定せず、`active`から`stale`へ変更します。
+- dreamは`remembers` Claimのconfidenceを段階的に減衰し、基準未満で`active`から`stale`へ変更します。
 - stdioとStreamable HTTPによるMCPサーバーとして18個のToolを提供します。
 
 ## MSIインストーラーを使う場合

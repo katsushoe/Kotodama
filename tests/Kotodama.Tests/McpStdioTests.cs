@@ -51,6 +51,9 @@ public sealed class McpStdioTests : IAsyncLifetime
         _client.ServerInstructions.Should().Contain("call remember_knowledge");
         _client.ServerInstructions.Should().Contain("even if the user did not explicitly ask");
         _client.ServerInstructions.Should().Contain("Do not merely acknowledge or summarize");
+        _client.ServerInstructions.Should().Contain("Kotodamaに記録しました")
+            .And.Contain("only after a successful database write")
+            .And.Contain("already_stored");
     }
 
     [Fact]
@@ -72,6 +75,8 @@ public sealed class McpStdioTests : IAsyncLifetime
         text.Should().Contain("ask the user");
         text.Should().Contain("call remember_knowledge during the current turn");
         text.Should().Contain("even when the user did not explicitly ask");
+        text.Should().Contain("Kotodamaに記録しました")
+            .And.Contain("never for already_stored");
     }
 
     [Fact]
@@ -91,7 +96,7 @@ public sealed class McpStdioTests : IAsyncLifetime
         var result = await _client.CallToolAsync("get_version", cancellationToken: CancellationToken.None);
 
         result.IsError.Should().NotBeTrue();
-        GetResponseJson(result).Should().Contain("Kotodama").And.Contain("0.11.5");
+        GetResponseJson(result).Should().Contain("Kotodama").And.Contain("0.11.7");
     }
 
     [Fact]
