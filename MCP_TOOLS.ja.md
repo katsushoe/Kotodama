@@ -1,6 +1,6 @@
 # MCP Tool仕様
 
-Kotodamaはstdio／Streamable HTTP Transportで18個のToolを提供します。プロパティ名はJSONではcamelCaseを使用します。
+Kotodamaはstdio／Streamable HTTP Transportで19個のToolを提供します。プロパティ名はJSONではcamelCaseを使用します。
 
 ## 管理操作
 
@@ -29,7 +29,8 @@ Promptは利用者またはクライアントが選択して使用します。Se
 | `search_entities` | `query`, `limit` | canonical name部分一致。1～200件 |
 | `create_relation_type` | `input` | RelationTypeを追加しIDを返す |
 | `propose_claim` | `candidate` | 検証後にRelation、Source、Claimを原子的に保存 |
-| `remember_knowledge` | `input.text`、任意のnamespace・確信度・Source・時点 | 自然文をユーザーが主張したStatementとして一括保存。完全一致Claimは再確認 |
+| `remember_knowledge` | `input.text`、任意のnamespace・確信度・Source・時点・Event | 原文Statementと抽出済みEventを一括保存。完全一致Claimは再確認 |
+| `query_events` | 任意のactor・place・from・to・namespace | 構造化Eventを人物・場所・重複期間で検索 |
 | `retract_claim` | `claimId` | active Claimをretractedへ変更 |
 | `query_claims` | 任意の検索条件、`includeRetracted`、`includeStale` | Claim一覧。空配列はunknown |
 | `query_relations` | Entity、RelationType | 関連Claim一覧 |
@@ -100,12 +101,23 @@ Promptは利用者またはクライアントが選択して使用します。Se
   "input": {
     "text": "このプロジェクトの定例バックアップは毎週金曜日の18時に実行します。",
     "namespace": "global",
-    "confidence": 1
+    "confidence": 1,
+    "event": {
+      "actor": "バックアップジョブ",
+      "action": "run",
+      "place": "このプロジェクト",
+      "startsAt": "2026-09-04T18:00:00+09:00",
+      "endsAt": "2026-09-04T19:00:00+09:00"
+    }
   }
 }
 ```
 
-`text`はユーザーが提示した事実を改変せず渡します。Kotodamaは`Conversation user`からStatement Entityへの`remembers` Claimとして、一つのトランザクションで保存します。同じnamespaceと完全一致する非撤回Claimがある場合は`already_stored`を返し、Claimを重複登録せずconfidence、状態、確認日時を回復します。このToolは自然文の意味解析を行わず、原文を保持します。
+`text`はユーザーが提示した事実を改変せず渡します。Kotodamaは`Conversation user`からStatement Entityへの`remembers` Claimとして保存します。予定や出来事についてAIクライアントが`event`を指定した場合は、Actor、Place、期間、Eventと原文Statementの参照も同じトランザクションで保存します。相対日時は発言時点とタイムゾーンから確定できる場合だけ絶対日時へ変換します。同じnamespaceと完全一致する非撤回Claimがある場合は`already_stored`を返し、Claimを重複登録せずconfidence、状態、確認日時を回復します。
+
+### query_events
+
+`actor`と`place`はEntity名の部分一致です。`from`以上`to`未満と期間が重なるEventを返します。「今週の部長の予定」のような質問では、AIクライアントが質問時点とタイムゾーンから絶対期間を求め、`actor: "部長"`とともに指定します。
 
 ### query_claims
 

@@ -54,7 +54,17 @@ public sealed record RememberKnowledgeInput(
     SourceInput? Source = null,
     DateTimeOffset? ObservedAt = null,
     DateTimeOffset? ValidFrom = null,
-    DateTimeOffset? ValidTo = null);
+    DateTimeOffset? ValidTo = null,
+    RememberedEventInput? Event = null);
+
+/// <summary>自然文から抽出済みのEvent構造です。</summary>
+public sealed record RememberedEventInput(
+    string Actor,
+    string Action,
+    string Place,
+    DateTimeOffset StartsAt,
+    DateTimeOffset EndsAt,
+    string? CanonicalName = null);
 
 /// <summary>自然文の知識保存結果です。</summary>
 public sealed record RememberKnowledgeResult(
@@ -64,7 +74,8 @@ public sealed record RememberKnowledgeResult(
     long StatementId,
     long ClaimId,
     int CreatedEntities,
-    bool CreatedRelationType);
+    bool CreatedRelationType,
+    long? EventId = null);
 
 /// <summary>dream の実行結果です。</summary>
 public sealed record DreamResult(int Examined, int MarkedStale, DateTimeOffset EvaluatedAt)
@@ -74,7 +85,10 @@ public sealed record DreamResult(int Examined, int MarkedStale, DateTimeOffset E
 }
 
 /// <summary>Event の登録要求です。</summary>
-public sealed record EventInput(string CanonicalName, long? ActorId, DateTimeOffset OccurredAt, string Action, long? ObjectId = null, string? ObjectValue = null, string Namespace = "global", string? Metadata = null);
+public sealed record EventInput(string CanonicalName, long? ActorId, DateTimeOffset OccurredAt, string Action, long? ObjectId = null, string? ObjectValue = null, string Namespace = "global", string? Metadata = null, DateTimeOffset? EndsAt = null, long? SourceStatementId = null);
 
 /// <summary>Event の登録結果です。</summary>
-public sealed record EventRecord(long EntityId, string CanonicalName, long? ActorId, DateTimeOffset OccurredAt, string Action, long? ObjectId, string? ObjectValue);
+public sealed record EventRecord(long EntityId, string CanonicalName, long? ActorId, DateTimeOffset OccurredAt, string Action, long? ObjectId, string? ObjectValue, DateTimeOffset? EndsAt = null, long? SourceStatementId = null);
+
+/// <summary>構造化Eventの検索結果です。</summary>
+public sealed record EventSearchRecord(long EntityId, string CanonicalName, long? ActorId, string? Actor, DateTimeOffset StartsAt, DateTimeOffset? EndsAt, string Action, long? PlaceId, string? Place, long? SourceStatementId, string? SourceStatement);

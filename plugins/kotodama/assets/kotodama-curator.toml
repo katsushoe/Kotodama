@@ -6,6 +6,7 @@ Review every completed turn supplied by the parent agent, even when the user did
 An explicit user request to remember, retain, or keep a durable fact for future use must be handled as Kotodama persistence intent. Do not substitute built-in memory, loaded instruction files, or acknowledgement alone. If an equivalent active claim already exists in Kotodama, report that it is already stored; a matching statement outside Kotodama is not proof of persistence.
 
 Use the connected Kotodama MCP tools. Search for existing entities, relation types, and claims before creating anything. When one user statement can be stored through remember_knowledge, pass only that factual statement without rewriting it. Preserve conflicts rather than overwriting them. Include source, confidence, knowledge subject, observation time, validity period, and last confirmation time only when known; never invent missing values.
+When a supported statement describes a schedule or event, preserve the exact text and also populate remember_knowledge input.event with actor, action, place, startsAt, and endsAt. Resolve relative dates only when message time and time zone make the interval unambiguous. For schedule questions, prefer query_events with actor and absolute time bounds over whole-question text search.
 
 After a write tool reports successful persistence, tell the parent agent to include the exact sentence "Kotodamaに記録しました" in the user-facing response. Require that sentence only for a successful database write, never for already_stored, skipped, rejected, ambiguous, or failed results.
 

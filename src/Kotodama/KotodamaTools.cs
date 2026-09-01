@@ -19,8 +19,11 @@ public sealed class KotodamaTools(KnowledgeStore store)
     [McpServerTool(Name = "propose_claim"), Description("Knowledge Candidateを規則検証し、妥当ならClaimとして保存します。")]
     public Task<OperationResult> ProposeClaim(ClaimCandidate candidate, CancellationToken cancellationToken) => store.ProposeClaimAsync(candidate, cancellationToken);
 
-    [McpServerTool(Name = "remember_knowledge"), Description("ユーザーが提示した根拠のある自然文をKotodamaへ保存します。長期利用価値が不確かでも保存でき、dreamが未確認期間に応じてconfidenceを減衰します。textへユーザーの事実を改変せず渡してください。完全一致する非撤回Claimは再確認して重複登録しません。")]
+    [McpServerTool(Name = "remember_knowledge"), Description("ユーザーが提示した根拠のある自然文をKotodamaへ保存します。textへ原文を改変せず渡し、予定や出来事なら抽出したactor・action・place・startsAt・endsAtをinput.eventへ指定してください。相対日時は発言時点とタイムゾーンから確定できる場合だけ絶対日時へ変換します。完全一致する非撤回Claimは再確認して重複登録しません。")]
     public Task<RememberKnowledgeResult> RememberKnowledge(RememberKnowledgeInput input, CancellationToken cancellationToken) => store.RememberKnowledgeAsync(input, cancellationToken);
+
+    [McpServerTool(Name = "query_events"), Description("構造化Eventをactor、place、期間で検索します。予定の質問では質問文全体の部分一致よりこのToolを優先してください。期間はfrom以上to未満と重なるEventを返します。")]
+    public Task<IReadOnlyList<EventSearchRecord>> QueryEvents(string? actor = null, string? place = null, DateTimeOffset? from = null, DateTimeOffset? to = null, string entityNamespace = "global", int limit = 50, CancellationToken cancellationToken = default) => store.QueryEventsAsync(actor, place, from, to, entityNamespace, limit, cancellationToken);
 
     [McpServerTool(Name = "retract_claim"), Description("Claimを物理削除せずretractedへ変更します。")]
     public Task<OperationResult> RetractClaim(long claimId, CancellationToken cancellationToken) => store.RetractClaimAsync(claimId, cancellationToken);

@@ -78,6 +78,67 @@ public sealed class KnowledgeStoreTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task RememberKnowledge_WhenEventIsProvided_StoresQueryableStructureAndSourceStatement()
+    {
+        var startsAt = DateTimeOffset.Parse("2026-09-01T00:00:00+09:00");
+        var endsAt = DateTimeOffset.Parse("2026-09-07T00:00:00+09:00");
+        var input = new RememberKnowledgeInput(
+            "今週、部長が福岡に来る",
+            Event: new("部長", "visit", "福岡", startsAt, endsAt));
+
+        var remembered = await _store.RememberKnowledgeAsync(input);
+        var events = await _store.QueryEventsAsync(actor: "部長", from: startsAt, to: endsAt);
+
+        remembered.EventId.Should().NotBeNull();
+        events.Should().ContainSingle();
+        events[0].Actor.Should().Be("部長");
+        events[0].Place.Should().Be("福岡");
+        events[0].Action.Should().Be("visit");
+        events[0].SourceStatementId.Should().Be(remembered.StatementId);
+        events[0].SourceStatement.Should().Be(input.Text);
+    }
+
+    [Fact]
+    public async Task RememberKnowledge_WhenExistingTextIsEnriched_AddsOneEventWithoutDuplicatingClaim()
+    {
+        var text = "今週、部長が福岡に来る";
+        var first = await _store.RememberKnowledgeAsync(new(text));
+        var structured = new RememberedEventInput(
+            "部長",
+            "visit",
+            "福岡",
+            DateTimeOffset.Parse("2026-09-01T00:00:00+09:00"),
+            DateTimeOffset.Parse("2026-09-07T00:00:00+09:00"));
+
+        var second = await _store.RememberKnowledgeAsync(new(text, Event: structured));
+        var third = await _store.RememberKnowledgeAsync(new(text, Event: structured));
+        var events = await _store.QueryEventsAsync(actor: "部長");
+
+        second.Status.Should().Be("already_stored");
+        second.ClaimId.Should().Be(first.ClaimId);
+        second.EventId.Should().NotBeNull();
+        third.EventId.Should().Be(second.EventId);
+        events.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task QueryEvents_WhenQuestionTermsDoNotMatchStatement_FindsByActorAndPeriod()
+    {
+        var startsAt = DateTimeOffset.Parse("2026-09-01T00:00:00+09:00");
+        var endsAt = DateTimeOffset.Parse("2026-09-07T00:00:00+09:00");
+        await _store.RememberKnowledgeAsync(new(
+            "今週、部長が福岡に来る",
+            Event: new("部長", "visit", "福岡", startsAt, endsAt)));
+
+        var result = await _store.QueryEventsAsync(
+            actor: "部長",
+            from: DateTimeOffset.Parse("2026-09-03T00:00:00+09:00"),
+            to: DateTimeOffset.Parse("2026-09-04T00:00:00+09:00"));
+
+        result.Should().ContainSingle(x => x.Place == "福岡");
+    }
+
+    [Fact]
     public async Task RememberKnowledge_WhenInputIsInvalid_DoesNotCreateRows()
     {
         var action = () => _store.RememberKnowledgeAsync(new("invalid", Confidence: 2));
