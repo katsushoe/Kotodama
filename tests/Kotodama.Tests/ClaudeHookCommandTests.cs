@@ -50,7 +50,24 @@ public sealed class ClaudeHookCommandTests
         using var result = JsonDocument.Parse(output.ToString());
         result.RootElement.GetProperty("decision").GetString().Should().Be("block");
         result.RootElement.GetProperty("reason").GetString().Should().Contain("durable, reusable facts");
-        result.RootElement.GetProperty("reason").GetString().Should().Contain("explicit Kotodama persistence intent");
+        result.RootElement.GetProperty("reason").GetString().Should().Contain("explicitly asked to remember");
+    }
+
+    [Fact]
+    public async Task RunAsync_StopWithoutExplicitRemember_RequiresSupportedFactReview()
+    {
+        using var input = new StringReader("{\"stop_hook_active\":false}");
+        using var output = new StringWriter();
+
+        await ClaudeHookCommand.RunAsync("claude", "stop", input, output);
+
+        using var result = JsonDocument.Parse(output.ToString());
+        var reason = result.RootElement.GetProperty("reason").GetString();
+        reason.Should().Contain("even when the user did not explicitly ask")
+            .And.Contain("user's factual text or an identified source")
+            .And.Contain("assistant-generated text without an identified source")
+            .And.Contain("never pass or store the raw transcript")
+            .And.Contain("do not create a duplicate");
     }
 
     [Fact]

@@ -24,7 +24,7 @@ C:\Kotodama\
 Start-Process msiexec.exe -Verb RunAs -Wait -ArgumentList '/i "Kotodama-0.11.4-x64.msi" /norestart'
 ```
 
-無人Installでは`/qn`を追加します。完了後、Windowsのインストール済みアプリに`Kotodama 0.11.4`が表示されること、`C:\Kotodama\bin\Kotodama.exe`のFile Versionが`0.11.4.0`であること、新しいターミナルで`kotodama`が解決できることを確認します。MSIは`C:\Kotodama\bin`をシステムPATHへ登録し、ログオンユーザーへ`Kotodama MCP Server` Scheduled Task、Codex、インストール済みの場合はClaude Codeの`kotodama` MCP設定とHooksを登録します。Codexには`%USERPROFILE%\.codex\agents\kotodama-curator.toml`も登録します。Codexは初回Hook実行時に信頼確認を表示する場合があります。KotodamaはScheduled Taskからコンソールウィンドウを表示せず起動します。
+無人Installでは`/qn`を追加します。完了後、Windowsのインストール済みアプリに`Kotodama 0.11.5`が表示されること、`C:\Kotodama\bin\Kotodama.exe`のFile Versionが`0.11.5.0`であること、新しいターミナルで`kotodama`が解決できることを確認します。MSIは`C:\Kotodama\bin`をシステムPATHへ登録し、ログオンユーザーへ`Kotodama MCP Server` Scheduled Task、Codex、インストール済みの場合はClaude Codeの`kotodama` MCP設定とHooksを登録します。Codexには`%USERPROFILE%\.codex\agents\kotodama-curator.toml`も登録します。Codexは初回Hook実行時に信頼確認を表示する場合があります。KotodamaはScheduled Taskからコンソールウィンドウを表示せず起動します。
 
 Codexプラグインの配布元はソースツリーの`plugins\kotodama`です。プラグインはKotodama HTTPサーバーの`http://127.0.0.1:39280/mcp`へ接続するため、MSIまたは`kotodama configure codex`による常駐設定を先に完了してください。導入後は新しいCodex Taskで`kotodama-knowledge` SkillとKotodama MCP Toolが利用可能であることを確認します。
 

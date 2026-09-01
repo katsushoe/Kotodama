@@ -59,6 +59,7 @@ public sealed class McpHttpTests : IAsyncLifetime
         _client.ServerCapabilities.Prompts.Should().NotBeNull();
         _client.ServerInstructions.Should().Contain("persistent structured knowledge");
         _client.ServerInstructions.Should().Contain("explicitly asks to remember");
+        _client.ServerInstructions.Should().Contain("even if the user did not explicitly ask");
     }
 
     [Fact]
@@ -66,7 +67,7 @@ public sealed class McpHttpTests : IAsyncLifetime
     {
         var result = await _client.CallToolAsync("get_version", cancellationToken: CancellationToken.None);
 
-        GetResponseJson(result).Should().Contain("Kotodama").And.Contain("0.11.4");
+        GetResponseJson(result).Should().Contain("Kotodama").And.Contain("0.11.5");
     }
 
     [Fact]

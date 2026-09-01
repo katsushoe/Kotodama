@@ -49,6 +49,8 @@ public sealed class McpStdioTests : IAsyncLifetime
         _client.ServerInstructions.Should().Contain("explicitly asks to remember");
         _client.ServerInstructions.Should().Contain("Do not substitute built-in memory");
         _client.ServerInstructions.Should().Contain("call remember_knowledge");
+        _client.ServerInstructions.Should().Contain("even if the user did not explicitly ask");
+        _client.ServerInstructions.Should().Contain("Do not merely acknowledge or summarize");
     }
 
     [Fact]
@@ -69,6 +71,7 @@ public sealed class McpStdioTests : IAsyncLifetime
         text.Should().Contain("propose_claim");
         text.Should().Contain("ask the user");
         text.Should().Contain("call remember_knowledge during the current turn");
+        text.Should().Contain("even when the user did not explicitly ask");
     }
 
     [Fact]
@@ -88,7 +91,7 @@ public sealed class McpStdioTests : IAsyncLifetime
         var result = await _client.CallToolAsync("get_version", cancellationToken: CancellationToken.None);
 
         result.IsError.Should().NotBeTrue();
-        GetResponseJson(result).Should().Contain("Kotodama").And.Contain("0.11.4");
+        GetResponseJson(result).Should().Contain("Kotodama").And.Contain("0.11.5");
     }
 
     [Fact]

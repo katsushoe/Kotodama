@@ -11,6 +11,7 @@
     <Content Include="../../desktop-extension/manifest.json" Link="desktop-extension/manifest.json" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../plugins/kotodama/.codex-plugin/plugin.json" Link="codex-plugin/plugin.json" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../plugins/kotodama/.mcp.json" Link="codex-plugin/.mcp.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../plugins/kotodama/assets/kotodama-curator.toml" Link="codex-plugin/assets/kotodama-curator.toml" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../plugins/kotodama/skills/kotodama-knowledge/SKILL.md" Link="codex-plugin/skills/kotodama-knowledge/SKILL.md" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
