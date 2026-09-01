@@ -20,7 +20,7 @@ dreamはオンラインClaimを直接走査しながら逐次更新せず、接�
 
 境界と等しい場合はまだ`active`です。通常Claimについて、dreamはconfidence、polarity、Source、有効期間を変更しません。
 
-`remember_knowledge`が作成する`remembers` Claimは30日周期で評価します。前回の保存・再確認・減衰から30日を超えるごとにconfidenceを80%へ減衰し、減衰後が0.2未満になった時点で`stale`へ変更します。同じ知識が再入力されるとconfidenceと確認日時が回復します。詳細な判断理由は[ADR-0005](ADR-0005-DREAM-KNOWLEDGE-DECAY.ja.md)を参照してください。
+`remember_knowledge`が作成する`remembers` Claimは30日周期で評価します。前回の保存・再確認・減衰から30日を超えるごとにconfidenceを80%へ減衰し、減衰後が0.2未満になった時点で`stale`へ変更します。同じ知識が再入力されるとconfidenceと確認日時が回復します。
 
 ## 処理手順
 
