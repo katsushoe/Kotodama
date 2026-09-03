@@ -70,7 +70,7 @@ public sealed class McpHttpTests : IAsyncLifetime
     {
         var result = await _client.CallToolAsync("get_version", cancellationToken: CancellationToken.None);
 
-        GetResponseJson(result).Should().Contain("Kotodama").And.Contain("0.12.0");
+        GetResponseJson(result).Should().Contain("Kotodama").And.Contain("0.13.0");
     }
 
     [Fact]
@@ -93,6 +93,20 @@ public sealed class McpHttpTests : IAsyncLifetime
 
         result.IsError.Should().NotBeTrue();
         GetResponseJson(result).Should().Contain("rejected");
+    }
+
+    [Fact]
+    public async Task RememberGraph_ThroughHttp_StoresStructureAndRejectsNegativeEquality()
+    {
+        var input = new StructuredKnowledgeInput("HTTP graph " + Guid.NewGuid().ToString("N"),
+            [new("a", "HTTP A"), new("b", "HTTP B")], [new("a", "b", "equals")]);
+        var stored = await _client.CallToolAsync("remember_knowledge", new Dictionary<string, object?> { ["input"] = input });
+        stored.IsError.Should().NotBeTrue();
+        using var json = JsonDocument.Parse(GetResponseJson(stored));
+        json.RootElement.GetProperty("structureStatus").GetString().Should().Be("structured");
+        var invalid = input with { Relations = [new("a", "b", "canonical_of", Polarity.Negative)] };
+        var rejected = await _client.CallToolAsync("remember_knowledge", new Dictionary<string, object?> { ["input"] = invalid });
+        GetResponseJson(rejected).Should().Contain("rejected").And.Contain("Negative");
     }
 
     [Theory]

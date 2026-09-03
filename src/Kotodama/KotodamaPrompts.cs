@@ -15,6 +15,13 @@ public sealed class KotodamaPrompts
 /// <summary>KotodamaをAIが適切に利用するための共通指針です。</summary>
 public static class KotodamaGuidance
 {
+    /// <summary>構造化入力と再入力の共通指針です。</summary>
+    public const string StructuredInput = """
+
+        For remember_knowledge, pass the unmodified factual text in input.statement and supply required input.entities and input.relations arrays. Extract supported concepts and relationships; entities have unique key, canonicalName, optional className/entityId/metadata, and relations refer to subject/object keys with relationType, polarity, confidence and optional strength. Search first and reuse existing entity IDs. Aim for at least 2 entities and 1 relation when supported; never invent structure to meet a count. Intentional zero counts require empty arrays and reason. Limits are 100 entities and 200 relations. Correct rejected structure and retry at most 3 times using retryCount=1,2,3; the last structural failure persists only the statement. Missing arrays and database failures do not trigger fallback. Check ok, status, structureStatus and reason before reporting persistence; skipped means intentional empty structure and may still have status=stored.
+        similar_to is symmetric but not transitive; confidence is certainty of the judgment and strength is similarity, both 0..1. equals/canonical_of is strict equivalence and forbids Negative polarity. These links must stay within one namespace. get_equivalent_entities resolves equivalence; search_entities related_path means a candidate reached by a path, not inferred similarity. SimilarityGroup metadata is exactly the JSON string {"threshold":0.5}, with a per-group value in 0..1; invalid metadata defaults to 0.5. Use member_of for membership. Merge or split groups only on an explicit human request, never automatically.
+        """;
+
     /// <summary>MCP初期化時にクライアントへ渡すServer Instructionsです。</summary>
     public const string ServerInstructions = """
         Use Kotodama as persistent structured knowledge, not as a transcript store.
@@ -25,7 +32,7 @@ public static class KotodamaGuidance
         After remember_knowledge or another write tool reports that persistence succeeded, include the exact sentence "Kotodamaに記録しました" in the user-facing response. Say it only after a successful database write; do not say it for already_stored, skipped, rejected, ambiguous, or failed results.
         Search for existing entities before creating them, preserve conflicting claims, include source, confidence, and temporal fields when known, and treat an empty result as unknown rather than false.
         Treat stale claims as requiring reconfirmation, not as false. Do not store secrets or sensitive personal data without explicit user approval.
-        """;
+        """ + StructuredInput;
 
     /// <summary>利用者が明示的に選択できるGlue Promptです。</summary>
     public const string Prompt = """
@@ -42,5 +49,5 @@ public static class KotodamaGuidance
         5. Preserve conflicting claims instead of overwriting one with another. Treat an empty query result as unknown, not false.
         6. Treat stale claims as requiring reconfirmation. Do not present them as current without qualification or a newer confirming claim.
         7. When a registration would be ambiguous, privacy-sensitive, or consequential, ask the user before calling a write tool.
-        """;
+        """ + StructuredInput;
 }

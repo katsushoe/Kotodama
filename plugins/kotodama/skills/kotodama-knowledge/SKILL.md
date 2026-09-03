@@ -7,6 +7,12 @@ description: Use persistent Kotodama knowledge when a Codex task may depend on r
 
 Use the connected Kotodama MCP server as structured knowledge, not as conversation storage.
 
+For `remember_knowledge`, pass the exact factual text in `input.statement` and provide required `entities` and `relations` arrays. Entity entries have unique `key`, `canonicalName`, and optional `className`, `entityId`, `metadata`. Relations refer to `subject`/`object` keys and supply `relationType`, optional `polarity`, `confidence`, `strength`. Search first and reuse existing entity IDs; create missing non-reserved relation types before saving. Aim for 2 entities and 1 relation when supported, never inventing structure to meet the count. Limits are 100 entities and 200 relations. For intentional zero counts, pass empty arrays and explain `reason`.
+
+On `ok:false` structural rejection, correct the input and retry at most 3 times with `retryCount` 1, 2, then 3. The last structural failure saves only the statement; inspect `structureStatus` and `reason`. Missing arrays and database failures do not fall back. Report partial structure accurately. `structureStatus:skipped` means intentional empty structure and can still accompany a successful `status:stored` database write.
+
+`similar_to` is symmetric and non-transitive: `confidence` is judgment certainty and `strength` is similarity, both 0..1. `equals`/`canonical_of` rejects Negative polarity. These links cannot cross namespaces. Use `get_equivalent_entities` for equivalence; a `search_entities` result marked `related_path` is only a related candidate. SimilarityGroup uses fixed JSON metadata string `{"threshold":0.5}` with a per-group 0..1 threshold (invalid values default to 0.5) and `member_of` claims. Merge or split groups only after an explicit human request.
+
 Before answering when retained knowledge may matter, search entities and claims. Treat an empty result as unknown and qualify stale claims as requiring confirmation.
 
 When the task reveals directly supported factual statements suitable for structured knowledge, delegate a focused review to the `kotodama-curator` custom agent when it is available. Otherwise perform the review directly. Do not require certainty about long-term usefulness; dream gradually reduces confidence when knowledge is not reconfirmed. Search before creating entities or relation types, preserve conflicting claims, and include source, confidence, knowledge subject, observation time, validity, and confirmation time only when supported.
