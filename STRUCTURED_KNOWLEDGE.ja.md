@@ -1,6 +1,6 @@
 # remember_knowledge 構造化拡張の契約
 
-この文書は入力・出力・意味論を定義します。実装方式と暫定判断の理由は [設計ノート](STRUCTURED_KNOWLEDGE_DESIGN.ja.md) を参照してください。
+この文書は入力・出力・意味論を定義します。実装方式と設計判断の理由は [設計ノート](STRUCTURED_KNOWLEDGE_DESIGN.ja.md) を参照してください。
 
 ## 入力
 

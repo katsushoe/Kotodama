@@ -33,7 +33,7 @@ DBへの新規記録が成功した場合、AIは利用者へ`Kotodamaに記録�
 
 ## Kotodamaのデータモデル
 
-`remember_knowledge`は`input.statement/entities/relations`を必須とし、原文・抽出概念・関係を一括保存します。旧`text`のみの呼び出しは更新が必要です。類似検索、同値集合、SimilarityGroup統合、再入力上限と原文保存への縮退は[構造化拡張の契約](STRUCTURED_KNOWLEDGE.ja.md)を参照してください。未決事項への暫定判断は[設計ノート](STRUCTURED_KNOWLEDGE_DESIGN.ja.md)に分離しています。
+`remember_knowledge`は`input.statement/entities/relations`を必須とし、原文・抽出概念・関係を一括保存します。旧`text`のみの呼び出しは更新が必要です。類似検索、同値集合、SimilarityGroup統合、再入力上限と原文保存への縮退は[構造化拡張の契約](STRUCTURED_KNOWLEDGE.ja.md)を参照してください。9項目の設計判断は[設計ノート](STRUCTURED_KNOWLEDGE_DESIGN.ja.md)に分離しています。
 
 ```text
 Entity --< 有向／対称 Relation >-- Entity
