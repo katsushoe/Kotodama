@@ -96,7 +96,7 @@ public sealed class McpStdioTests : IAsyncLifetime
         var result = await _client.CallToolAsync("get_version", cancellationToken: CancellationToken.None);
 
         result.IsError.Should().NotBeTrue();
-        GetResponseJson(result).Should().Contain("Kotodama").And.Contain("0.12.0");
+        GetResponseJson(result).Should().Contain("Kotodama").And.Contain("0.13.0");
     }
 
     [Fact]
@@ -106,8 +106,8 @@ public sealed class McpStdioTests : IAsyncLifetime
         var schema = tools.Single(x => x.Name == "remember_knowledge").JsonSchema;
         var required = schema.GetProperty("properties").GetProperty("input").GetProperty("required");
         required.EnumerateArray().Select(x => x.GetString()).Should().Contain(["statement", "entities", "relations"]);
-        var missing = () => CallAsync("remember_knowledge", new Dictionary<string, object?> { ["input"] = new { statement = "Missing arrays" } });
-        await missing.Should().ThrowAsync<ModelContextProtocol.McpProtocolException>();
+        var missing = await CallAsync("remember_knowledge", new Dictionary<string, object?> { ["input"] = new { statement = "Missing arrays" } });
+        missing.IsError.Should().BeTrue();
         var search = await CallAsync("search_entities", new Dictionary<string, object?> { ["query"] = "Missing arrays" });
         using var result = JsonDocument.Parse(GetResponseJson(search));
         result.RootElement.GetArrayLength().Should().Be(0);
