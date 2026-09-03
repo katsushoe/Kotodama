@@ -33,6 +33,8 @@ DBへの新規記録が成功した場合、AIは利用者へ`Kotodamaに記録�
 
 ## Kotodamaのデータモデル
 
+`remember_knowledge`は`input.statement/entities/relations`を必須とし、原文・抽出概念・関係を一括保存します。旧`text`のみの呼び出しは更新が必要です。類似検索、同値集合、SimilarityGroup統合、再入力上限と原文保存への縮退は[構造化拡張の契約](STRUCTURED_KNOWLEDGE.ja.md)を参照してください。未決事項への暫定判断は[設計ノート](STRUCTURED_KNOWLEDGE_DESIGN.ja.md)に分離しています。
+
 ```text
 Entity --< 有向／対称 Relation >-- Entity
                        |
@@ -59,7 +61,7 @@ Claimは明示的な撤回で`active -> retracted`、`dream`で`active -> stale`
 - 情報が存在しない場合はfalseと断定せず、空の検索結果をunknownとして扱います。
 - Claimの有効期間、観測日時、最終確認日時、鮮度状態を保持します。
 - dreamは`remembers` Claimのconfidenceを段階的に減衰し、基準未満で`active`から`stale`へ変更します。
-- stdioとStreamable HTTPによるMCPサーバーとして19個のToolを提供します。
+- stdioとStreamable HTTPによるMCPサーバーとして21個のToolを提供します。
 
 ## MSIインストーラーを使う場合
 

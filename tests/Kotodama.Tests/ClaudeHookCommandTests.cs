@@ -35,7 +35,7 @@ public sealed class ClaudeHookCommandTests
         var context = result.RootElement.GetProperty("hookSpecificOutput").GetProperty("additionalContext").GetString();
         context.Should().Contain("explicit request to persist")
             .And.Contain("Do not satisfy the request with built-in memory")
-            .And.Contain("propose_claim")
+            .And.Contain("remember_knowledge")
             .And.Contain("Kotodamaに記録しました")
             .And.Contain("only after a successful database write")
             .And.Contain("already_stored");

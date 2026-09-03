@@ -95,6 +95,20 @@ public sealed class McpHttpTests : IAsyncLifetime
         GetResponseJson(result).Should().Contain("rejected");
     }
 
+    [Fact]
+    public async Task RememberGraph_ThroughHttp_StoresStructureAndRejectsNegativeEquality()
+    {
+        var input = new StructuredKnowledgeInput("HTTP graph " + Guid.NewGuid().ToString("N"),
+            [new("a", "HTTP A"), new("b", "HTTP B")], [new("a", "b", "equals")]);
+        var stored = await _client.CallToolAsync("remember_knowledge", new Dictionary<string, object?> { ["input"] = input });
+        stored.IsError.Should().NotBeTrue();
+        using var json = JsonDocument.Parse(GetResponseJson(stored));
+        json.RootElement.GetProperty("structureStatus").GetString().Should().Be("structured");
+        var invalid = input with { Relations = [new("a", "b", "canonical_of", Polarity.Negative)] };
+        var rejected = await _client.CallToolAsync("remember_knowledge", new Dictionary<string, object?> { ["input"] = invalid });
+        GetResponseJson(rejected).Should().Contain("rejected").And.Contain("Negative");
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("Bearer wrong-token")]

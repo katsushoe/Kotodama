@@ -1,6 +1,6 @@
 # MCP Tool仕様
 
-Kotodamaはstdio／Streamable HTTP Transportで19個のToolを提供します。プロパティ名はJSONではcamelCaseを使用します。
+Kotodamaはstdio／Streamable HTTP Transportで21個のToolを提供します。プロパティ名はJSONではcamelCaseを使用します。
 
 ## 管理操作
 
@@ -26,10 +26,12 @@ Promptは利用者またはクライアントが選択して使用します。Se
 | `get_version` | なし | `{name, version}`。副作用なし |
 | `create_entity` | `input` | Entityを追加し`EntityRecord`を返す |
 | `get_entity` | `id` | Entityまたは`null` |
-| `search_entities` | `query`, `limit` | canonical name部分一致。1～200件 |
+| `search_entities` | `query`, `limit`, `includeRelated` | 名前一致と類似・同値・グループ経由の関連候補。合計1～200件 |
+| `get_equivalent_entities` | `entityId` | 現在有効な同値集合（自身を含む） |
+| `merge_similarity_groups` | `groupAId`, `groupBId`, 任意canonicalName | 明示操作で加重thresholdの新グループを作成し、旧所属を撤回 |
 | `create_relation_type` | `input` | RelationTypeを追加しIDを返す |
 | `propose_claim` | `candidate` | 検証後にRelation、Source、Claimを原子的に保存 |
-| `remember_knowledge` | `input.text`、任意のnamespace・確信度・Source・時点・Event | 原文Statementと抽出済みEventを一括保存。完全一致Claimは再確認 |
+| `remember_knowledge` | 必須`input.statement/entities/relations`、任意reason・retryCount・namespace・確信度・Source・時点・Event | 原文と抽出概念・関係を一括保存。出典Statement参照と再入力結果を返す |
 | `query_events` | 任意のactor・place・from・to・namespace | 構造化Eventを人物・場所・重複期間で検索 |
 | `retract_claim` | `claimId` | active Claimをretractedへ変更 |
 | `query_claims` | 任意の検索条件、`includeRetracted`、`includeStale` | Claim一覧。空配列はunknown |
@@ -99,7 +101,10 @@ Promptは利用者またはクライアントが選択して使用します。Se
 ```json
 {
   "input": {
-    "text": "このプロジェクトの定例バックアップは毎週金曜日の18時に実行します。",
+    "statement": "このプロジェクトの定例バックアップは毎週金曜日の18時に実行します。",
+    "entities": [],
+    "relations": [],
+    "reason": "この例では予定をevent構造として指定します。",
     "namespace": "global",
     "confidence": 1,
     "event": {
@@ -113,7 +118,7 @@ Promptは利用者またはクライアントが選択して使用します。Se
 }
 ```
 
-`text`はユーザーが提示した事実を改変せず渡します。Kotodamaは`Conversation user`からStatement Entityへの`remembers` Claimとして保存します。予定や出来事についてAIクライアントが`event`を指定した場合は、Actor、Place、期間、Eventと原文Statementの参照も同じトランザクションで保存します。相対日時は発言時点とタイムゾーンから確定できる場合だけ絶対日時へ変換します。同じnamespaceと完全一致する非撤回Claimがある場合は`already_stored`を返し、Claimを重複登録せずconfidence、状態、確認日時を回復します。
+`statement`へ原文、`entities/relations`へ抽出済みの概念・関係を渡します。空配列は理由が必要です。従来の`text`のみの入力は受け付けません。通常の保存は原子的で、再入力上限後の構造エラー時だけ原文保存に縮退します。Eventの併用も可能です。出力、語彙制約、SimilarityGroup、既存データとの互換性の詳細は[構造化拡張の契約](STRUCTURED_KNOWLEDGE.ja.md)を参照してください。
 
 ### query_events
 

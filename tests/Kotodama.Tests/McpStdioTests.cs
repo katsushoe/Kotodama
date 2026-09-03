@@ -87,7 +87,7 @@ public sealed class McpStdioTests : IAsyncLifetime
         tools.Select(x => x.Name).Should().BeEquivalentTo(
             "get_version", "get_entity", "search_entities", "propose_claim", "retract_claim", "reactivate_claim", "delete_claim",
             "query_claims", "query_relations", "get_neighbors", "get_knowledge_context",
-            "run_dream", "create_entity", "create_relation_type", "update_relation_type", "delete_relation_type", "create_event", "remember_knowledge", "query_events");
+            "run_dream", "create_entity", "create_relation_type", "update_relation_type", "delete_relation_type", "create_event", "remember_knowledge", "query_events", "get_equivalent_entities", "merge_similarity_groups");
     }
 
     [Fact]
@@ -97,6 +97,35 @@ public sealed class McpStdioTests : IAsyncLifetime
 
         result.IsError.Should().NotBeTrue();
         GetResponseJson(result).Should().Contain("Kotodama").And.Contain("0.12.0");
+    }
+
+    [Fact]
+    public async Task RememberSchema_RequiresStatementAndBothArrays()
+    {
+        var tools = await _client.ListToolsAsync(cancellationToken: CancellationToken.None);
+        var schema = tools.Single(x => x.Name == "remember_knowledge").JsonSchema;
+        var required = schema.GetProperty("properties").GetProperty("input").GetProperty("required");
+        required.EnumerateArray().Select(x => x.GetString()).Should().Contain(["statement", "entities", "relations"]);
+        var missing = () => CallAsync("remember_knowledge", new Dictionary<string, object?> { ["input"] = new { statement = "Missing arrays" } });
+        await missing.Should().ThrowAsync<ModelContextProtocol.McpProtocolException>();
+        var search = await CallAsync("search_entities", new Dictionary<string, object?> { ["query"] = "Missing arrays" });
+        using var result = JsonDocument.Parse(GetResponseJson(search));
+        result.RootElement.GetArrayLength().Should().Be(0);
+    }
+
+    [Fact]
+    public async Task RememberGraph_ThroughStdio_ReturnsPersistedSourceReference()
+    {
+        var input = new StructuredKnowledgeInput("MCP graph " + Guid.NewGuid().ToString("N"),
+            [new("a", "MCP A"), new("b", "MCP B")], [new("a", "b", "similar_to", Strength: .8)]);
+        var result = await CallAsync("remember_knowledge", new Dictionary<string, object?> { ["input"] = input });
+        result.IsError.Should().NotBeTrue();
+        using var stored = JsonDocument.Parse(GetResponseJson(result));
+        stored.RootElement.GetProperty("structureStatus").GetString().Should().Be("structured");
+        var statementId = stored.RootElement.GetProperty("statementId").GetInt64();
+        var claims = await CallAsync("query_claims", new Dictionary<string, object?> { ["relationType"] = "similar_to" });
+        using var queried = JsonDocument.Parse(GetResponseJson(claims));
+        queried.RootElement.EnumerateArray().Should().Contain(x => x.GetProperty("sourceStatementId").GetInt64() == statementId);
     }
 
     [Fact]
@@ -124,7 +153,7 @@ public sealed class McpStdioTests : IAsyncLifetime
 
         var remembered = await CallAsync("remember_knowledge", new Dictionary<string, object?>
         {
-            ["input"] = new { text },
+            ["input"] = new { statement = text, entities = Array.Empty<object>(), relations = Array.Empty<object>(), reason = "Statement-only test" },
         });
         var searched = await CallAsync("search_entities", new Dictionary<string, object?>
         {
@@ -145,7 +174,10 @@ public sealed class McpStdioTests : IAsyncLifetime
         {
             ["input"] = new
             {
-                text = "今週、部長が福岡に来る " + suffix,
+                statement = "今週、部長が福岡に来る " + suffix,
+                entities = Array.Empty<object>(),
+                relations = Array.Empty<object>(),
+                reason = "Event structure is supplied separately",
                 @event = new
                 {
                     actor,
