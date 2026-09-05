@@ -26,14 +26,15 @@ public sealed partial class KnowledgeStore
         // 配列の欠落はAPI契約違反であり、明示的な空配列とは区別します。
         ArgumentNullException.ThrowIfNull(input.Entities);
         ArgumentNullException.ThrowIfNull(input.Relations);
-        return RememberKnowledgeAsync(new(input.Statement, input.Namespace, input.Confidence, input.Source, input.ObservedAt, input.ValidFrom, input.ValidTo, input.Event), cancellationToken, input);
+        return RememberKnowledgeAsync(new(input.Statement, input.Namespace, input.Confidence, input.Source, input.ObservedAt, input.ValidFrom, input.ValidTo, input.Event, input.Tags), cancellationToken, input);
     }
 
     private async Task<RememberKnowledgeResult> CompleteRememberAsync(SqliteConnection connection, SqliteTransaction transaction,
-        StructuredKnowledgeInput? input, RememberKnowledgeResult result, CancellationToken token)
+        StructuredKnowledgeInput? input, RememberKnowledgeResult result, CancellationToken token, IReadOnlyList<string>? tags, string entityNamespace)
     {
         if (input is null)
         {
+            if (await ApplyRememberTagsAsync(connection, transaction, result, tags, entityNamespace, token)) result = result with { Status = "stored" };
             await transaction.CommitAsync(token);
             return result;
         }
@@ -66,6 +67,7 @@ public sealed partial class KnowledgeStore
                 return new(false, "rejected", 0, 0, 0, 0, false) { StructureStatus = "rejected", Reason = error.Message };
             result = result with { StructureStatus = "fallback", Reason = error.Message };
         }
+        if (await ApplyRememberTagsAsync(connection, transaction, result, tags, entityNamespace, token)) result = result with { Status = "stored" };
         await transaction.CommitAsync(token);
         return result;
     }

@@ -8,6 +8,7 @@ MCP引数は `input` オブジェクトです。`statement`、`entities`、`rela
 
 - `entities`: `key`、`canonicalName`、任意の `className`（既定Entity）、`entityId`、`metadata`。`key` は要求内で一意です。`entityId` 指定時は名称・class・namespaceが一致する既存Entityを参照します。未指定時は同一名称・class・namespaceを再利用します。既存Entityのmetadataは上書きしません。
 - `relations`: `subject`、`object`（entitiesのkey）、`relationType`、任意の `polarity`（Positive）、`confidence`（1）、`strength`。予約語彙以外のRelationTypeは事前に `create_relation_type` で登録します。
+- `tags`: 任意のタグ名配列。保存文と当該保存のClaimへ原子的に付与します。正規化、継承、検索・管理契約は[知識タグ仕様](KNOWLEDGE_TAGS.ja.md)を参照してください。
 - 概念数の目安は2件以上、関係は1件以上です。これは件数の強制ではなく、空配列時の再入力案内です。上限は概念100件・関係200件です。
 - どちらかが空なら、意図的ゼロ件の `reason` が必要です。非空の配列はその場合も保存対象です。両配列は `reason` があっても省略不可です。
 - `retryCount` は初回0、再入力1～3です。呼び出し元が構造を修正して最大3回まで再入力します。3回目も構造エラーなら原文Statementとremembers Claimだけを保存します。概念・抽出関係・今回のEventは保存しません。

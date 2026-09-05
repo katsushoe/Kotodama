@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using ModelContextProtocol;
 using ModelContextProtocol.Server;
 
 namespace Kotodama;
@@ -7,8 +8,45 @@ namespace Kotodama;
 [McpServerToolType]
 public sealed class KotodamaTools(KnowledgeStore store)
 {
+    [McpServerTool(Name = "create_tag"), Description("namespace内の正規化タグを作成・再利用します。名前はNFKC・前後空白除去・Invariant大文字で照合します。")]
+    public Task<TagRecord> CreateTag(string name, string entityNamespace = "global", CancellationToken cancellationToken = default) => ValidateToolAsync(() => store.CreateTagAsync(name, entityNamespace, cancellationToken));
+
+    [McpServerTool(Name = "list_tags", ReadOnly = true), Description("namespace内のタグをID順で返します。統合済みIDとmergedIntoIdも含みます。")]
+    public Task<IReadOnlyList<TagRecord>> ListTags(string entityNamespace = "global", long afterId = 0, int limit = 50, CancellationToken cancellationToken = default) => ValidateToolAsync(() => store.ListTagsAsync(entityNamespace, afterId, limit, cancellationToken));
+
+    [McpServerTool(Name = "rename_tag"), Description("タグをIDで改名し旧名を別名として保持します。別タグの名前と衝突する場合は拒否します。")]
+    public Task<TagRecord> RenameTag(long tagId, string name, string entityNamespace = "global", CancellationToken cancellationToken = default) => ValidateToolAsync(() => store.RenameTagAsync(tagId, name, entityNamespace, cancellationToken));
+
+    [McpServerTool(Name = "add_tag_alias"), Description("タグIDへ別名を追加します。namespace内で正規名と同じ一意性を適用します。")]
+    public Task<TagRecord> AddTagAlias(long tagId, string alias, string entityNamespace = "global", CancellationToken cancellationToken = default) => ValidateToolAsync(() => store.AddTagAliasAsync(tagId, alias, entityNamespace, cancellationToken));
+
+    [McpServerTool(Name = "merge_tags"), Description("明示された同一namespaceのタグを統合します。関連・別名を移し、旧IDは統合先へ解決します。")]
+    public Task<TagRecord> MergeTags(long sourceTagId, long targetTagId, string entityNamespace = "global", CancellationToken cancellationToken = default) => ValidateToolAsync(() => store.MergeTagsAsync(sourceTagId, targetTagId, entityNamespace, cancellationToken));
+
+    [McpServerTool(Name = "set_knowledge_tags"), Description("statement/claimへタグIDを付与・解除します。targetIdsまたはknowledgeSubjectIdを指定。dryRun既定true、実行はexpectedCount必須で件数相違時に拒否します。後付け・解除は指定対象のみに適用します。")]
+    public Task<TagUpdateResult> SetKnowledgeTags(SetKnowledgeTagsInput input, CancellationToken cancellationToken) => ValidateToolAsync(() => store.SetKnowledgeTagsAsync(input, cancellationToken));
+
+    [McpServerTool(Name = "query_tagged_statements", ReadOnly = true), Description("保存文をtags/tagIdsの完全一致で検索します。tagMatch=any/all、namespace、afterId、limitを指定し、付与由来を返します。")]
+    public Task<IReadOnlyList<TaggedStatement>> QueryTaggedStatements(TagQueryInput input, CancellationToken cancellationToken) => ValidateToolAsync(() => store.QueryTaggedStatementsAsync(input, cancellationToken));
+
+    [McpServerTool(Name = "query_tagged_claims", ReadOnly = true), Description("Claimをtags/tagIdsの完全一致で検索します。tagMatch=any/all、namespace、状態、有効時点、afterId、limitを指定し、付与由来を返します。")]
+    public Task<IReadOnlyList<TaggedClaim>> QueryTaggedClaims(TagQueryInput input, CancellationToken cancellationToken) => ValidateToolAsync(() => store.QueryTaggedClaimsAsync(input, cancellationToken));
+
+    private static async Task<T> ValidateToolAsync<T>(Func<Task<T>> operation)
+    {
+        try
+        {
+            return await operation();
+        }
+        catch (ArgumentException error)
+        {
+            // 仕様上の入力エラーをToolエラーへ変換し、DB障害・キャンセルは伝播します。
+            throw new McpException(error.Message, error);
+        }
+    }
+
     [McpServerTool(Name = "get_version"), Description("稼働中のKotodamaバージョンを返します。")]
-    public static object GetVersion() => new { name = "Kotodama", version = "0.13.0" };
+    public static object GetVersion() => new { name = "Kotodama", version = "0.14.0" };
 
     [McpServerTool(Name = "get_entity"), Description("IDでEntityを取得します。存在しない場合はnullです。")]
     public Task<EntityRecord?> GetEntity(long id, CancellationToken cancellationToken) => store.GetEntityAsync(id, cancellationToken);
@@ -26,7 +64,7 @@ public sealed class KotodamaTools(KnowledgeStore store)
     public Task<OperationResult> ProposeClaim(ClaimCandidate candidate, CancellationToken cancellationToken) => store.ProposeClaimAsync(candidate, cancellationToken);
 
     [McpServerTool(Name = "remember_knowledge"), Description("input.statementに原文、必須entities/relationsに抽出済み概念・関係を渡します。entitiesはkey,canonicalName,className,任意entityId/metadata、relationsはsubject/objectキー,relationType,polarity,confidence,任意strengthです。目安は概念2件・関係1件、上限100/200。意図的ゼロ件は空配列とreasonを指定します。構造エラーは最大3回修正しretryCountを増加、3回目も失敗すれば原文だけ保存します。DB障害は縮退しません。SourceStatementIdで原文へ追跡可能です。similar_toはstrength=類似度、confidence=判定確信度で推移性なし。equals/canonical_ofはNegative禁止。同一namespaceのみ。SimilarityGroup metadataは固定JSON文字列 {\"threshold\":0.5}（0～1）、不正値は0.5。Event入力も併用可能です。")]
-    public Task<RememberKnowledgeResult> RememberKnowledge(StructuredKnowledgeInput input, CancellationToken cancellationToken) => store.RememberStructuredKnowledgeAsync(input, cancellationToken);
+    public Task<RememberKnowledgeResult> RememberKnowledge(StructuredKnowledgeInput input, CancellationToken cancellationToken) => ValidateToolAsync(() => store.RememberStructuredKnowledgeAsync(input, cancellationToken));
 
     [McpServerTool(Name = "query_events"), Description("構造化Eventをactor、place、期間で検索します。予定の質問では質問文全体の部分一致よりこのToolを優先してください。期間はfrom以上to未満と重なるEventを返します。")]
     public Task<IReadOnlyList<EventSearchRecord>> QueryEvents(string? actor = null, string? place = null, DateTimeOffset? from = null, DateTimeOffset? to = null, string entityNamespace = "global", int limit = 50, CancellationToken cancellationToken = default) => store.QueryEventsAsync(actor, place, from, to, entityNamespace, limit, cancellationToken);

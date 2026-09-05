@@ -16,7 +16,9 @@ public sealed record StructuredKnowledgeInput(
     DateTimeOffset? ValidTo = null,
     RememberedEventInput? Event = null,
     [Description("呼び出し元が管理する再入力回数。0が初回、1～3が再入力。3回目の構造エラーは原文保存へ縮退します。")]
-    int RetryCount = 0);
+    int RetryCount = 0,
+    [Description("namespace内の正規名・別名で指定するタグ。Statementと当該保存のClaimへ原子的に付与します。")]
+    IReadOnlyList<string>? Tags = null);
 
 /// <summary>keyで関係から参照する概念。既存EntityはentityIdを指定します。</summary>
 public sealed record RememberedEntityInput(string Key, string CanonicalName, string ClassName = "Entity", long? EntityId = null, string? Metadata = null);

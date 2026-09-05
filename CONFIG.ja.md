@@ -20,6 +20,10 @@ Kotodamaの設定は環境変数で指定します。設定ファイルの自動
 
 `KOTODAMA_TRANSPORT`は大文字小文字を区別しません。不明な値、HTTPモードでのURL未指定、loopback以外のhost、URL内のpath・query・fragment・userinfoは起動エラーです。MCP endpointは指定URLの`/mcp`です。`KOTODAMA_HTTP_TOKEN`設定時は`Authorization: Bearer <token>`が必要です。tokenはログへ出力しません。認証の有無にかかわらずloopback以外には公開できません。
 
+## CLI接続
+
+`Kotodama call <tool> <arguments.json>`はHTTPサービスへ接続し、`KOTODAMA_HTTP_URL`（省略時`http://127.0.0.1:39280`）と`KOTODAMA_HTTP_TOKEN`を利用します。このCLIは`KOTODAMA_DB`へ直接アクセスしません。詳細は[知識タグ・CLI仕様](KNOWLEDGE_TAGS.ja.md)を参照してください。
+
 ## DBパスの決定順序
 
 1. `KOTODAMA_DB`が設定されていれば、その値を使用します。
@@ -29,6 +33,8 @@ Kotodamaの設定は環境変数で指定します。設定ファイルの自動
 MSI版では2番目が適用され、`C:\Kotodama\data\kotodama.db`になります。
 
 ## ログパスの決定順序
+
+サーバーのログ出力先は日別ファイルと標準エラーです。Windows Event Logへの書き込み権限に依存せず、入力エラーの応答を継続できる構成です。
 
 1. `KOTODAMA_LOG_DIR`が設定されていれば、その値を使用します。
 2. 実行ファイルの1階層上に`logs`ディレクトリが存在すれば、そのディレクトリを使用します。

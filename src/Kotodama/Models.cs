@@ -59,7 +59,8 @@ public sealed record RememberKnowledgeInput(
     DateTimeOffset? ObservedAt = null,
     DateTimeOffset? ValidFrom = null,
     DateTimeOffset? ValidTo = null,
-    RememberedEventInput? Event = null);
+    RememberedEventInput? Event = null,
+    IReadOnlyList<string>? Tags = null);
 
 /// <summary>自然文から抽出済みのEvent構造です。</summary>
 public sealed record RememberedEventInput(

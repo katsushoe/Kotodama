@@ -76,7 +76,9 @@ Connect the MCP client to `http://127.0.0.1:39280/mcp`. When `KOTODAMA_HTTP_TOKE
 
 ## MCP tools
 
-`get_version`, `get_entity`, `search_entities`, `get_equivalent_entities`, `merge_similarity_groups`, `create_entity`, `create_relation_type`, `update_relation_type`, `delete_relation_type`, `create_event`, `query_events`, `query_relations`, `query_claims`, `get_neighbors`, `get_knowledge_context`, `propose_claim`, `remember_knowledge`, `retract_claim`, `reactivate_claim`, `delete_claim`, and `run_dream`.
+`get_version`, `get_entity`, `search_entities`, `get_equivalent_entities`, `merge_similarity_groups`, `create_entity`, `create_relation_type`, `update_relation_type`, `delete_relation_type`, `create_event`, `query_events`, `query_relations`, `query_claims`, `get_neighbors`, `get_knowledge_context`, `propose_claim`, `remember_knowledge`, `retract_claim`, `reactivate_claim`, `delete_claim`, `run_dream`, `create_tag`, `list_tags`, `rename_tag`, `add_tag_alias`, `merge_tags`, `set_knowledge_tags`, `query_tagged_statements`, and `query_tagged_claims` (29 tools).
+
+Optional `remember_knowledge.input.tags` atomically tags the statement and its claims. Tags support namespace-scoped Unicode normalization, exact AND/OR search, previewed bulk attachment, renaming, aliases, and ID-preserving merges. See the [tag contract and migration guide](KNOWLEDGE_TAGS.ja.md). `Kotodama call <tool> <arguments.json>` invokes the same tools through the running HTTP service; `call-help` prints usage.
 
 `remember_knowledge` now requires `input.statement`, `input.entities`, and `input.relations`; the old text-only MCP input must be updated. It atomically saves extracted concepts and claims with a source-statement reference. Intentional empty structure requires `reason`; after at most three correction retries, structural failure falls back to statement-only persistence. Similarity is non-transitive, equality resolves a current equivalence set, and SimilarityGroup merges use member-weighted thresholds. See the [structured knowledge contract](STRUCTURED_KNOWLEDGE.ja.md) and [design decisions](STRUCTURED_KNOWLEDGE_DESIGN.ja.md).
 
