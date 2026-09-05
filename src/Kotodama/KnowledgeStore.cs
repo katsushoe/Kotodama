@@ -40,6 +40,8 @@ public sealed partial class KnowledgeStore
         command.CommandText = Schema;
         await command.ExecuteNonQueryAsync(cancellationToken);
 
+        await InitializeStatementsAsync(connection, cancellationToken);
+
         await using var migration = connection.CreateCommand();
         migration.CommandText = "UPDATE relation_types SET freshness_policy='periodic',refresh_after_seconds=$refresh,updated_at=$now WHERE canonical_name='remembers' AND freshness_policy='permanent' AND refresh_after_seconds IS NULL";
         migration.Parameters.AddWithValue("$refresh", RememberRefreshAfterSeconds);
@@ -56,6 +58,15 @@ public sealed partial class KnowledgeStore
     {
         ArgumentNullException.ThrowIfNull(input);
         ArgumentException.ThrowIfNullOrWhiteSpace(input.CanonicalName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(input.ClassName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(input.Namespace);
+        ValidateAtomicEntityName(input.CanonicalName, input.ClassName);
+        input = input with
+        {
+            CanonicalName = input.CanonicalName.Trim(),
+            ClassName = input.ClassName.Trim(),
+            Namespace = input.Namespace.Trim()
+        };
         input = input with { Metadata = NormalizeMetadata(input.ClassName, input.Metadata) };
         var now = Now();
         await using var connection = await OpenAsync(cancellationToken);
@@ -95,6 +106,7 @@ public sealed partial class KnowledgeStore
     {
         ArgumentNullException.ThrowIfNull(input);
         ArgumentException.ThrowIfNullOrWhiteSpace(input.Action);
+        ValidateAtomicEntityName(input.CanonicalName, "Event");
         if (input.ObjectId is null && string.IsNullOrWhiteSpace(input.ObjectValue)) throw new ArgumentException("object_id or object_value is required", nameof(input));
         if (input.EndsAt is not null && input.EndsAt <= input.OccurredAt) throw new ArgumentException("ends_at must be greater than occurred_at", nameof(input));
         var entity = await CreateEntityAsync(new(input.CanonicalName, "Event", input.Namespace, input.Metadata), cancellationToken);
@@ -134,7 +146,7 @@ public sealed partial class KnowledgeStore
         return new(true, "accepted", Id: claimId);
     }
 
-    /// <summary>自然文をユーザーが主張したStatementとして原子的に保存します。</summary>
+    /// <summary>自然文をStatementへ保存し、Entityとは分離します。</summary>
     public async Task<RememberKnowledgeResult> RememberKnowledgeAsync(RememberKnowledgeInput input, CancellationToken cancellationToken = default, StructuredKnowledgeInput? structure = null)
     {
         ArgumentNullException.ThrowIfNull(input);
@@ -150,7 +162,7 @@ public sealed partial class KnowledgeStore
         await using var connection = await OpenAsync(cancellationToken);
         await using var transaction = connection.BeginTransaction(deferred: false);
         var (subjectId, subjectCreated) = await GetOrCreateEntityAsync(connection, transaction, "Conversation user", "KnowledgeSubject", input.Namespace, now, cancellationToken);
-        var (statementId, statementCreated) = await GetOrCreateEntityAsync(connection, transaction, text, "Statement", input.Namespace, now, cancellationToken);
+        var (statementId, _) = await GetOrCreateStatementAsync(connection, transaction, text, input.Namespace, now, cancellationToken);
         var (relationTypeId, relationTypeCreated) = await GetOrCreateRememberRelationTypeAsync(connection, transaction, now, cancellationToken);
         var relationId = await GetOrCreateRelationAsync(connection, transaction, relationTypeId, RelationKind.Directed, subjectId, statementId, cancellationToken);
         var existingClaimId = await FindRememberedClaimAsync(connection, transaction, relationId, cancellationToken);
@@ -159,7 +171,7 @@ public sealed partial class KnowledgeStore
             await ReconfirmRememberedClaimAsync(connection, transaction, existingClaimId.Value, input.Confidence, now, cancellationToken);
             var existingEventId = structure is null ? await PersistRememberedEventAsync(connection, transaction, statementId, text, input.Namespace, input.Event, now, cancellationToken) : null;
             return await CompleteRememberAsync(connection, transaction, structure,
-                new(true, "already_stored", subjectId, statementId, existingClaimId.Value, Convert.ToInt32(subjectCreated) + Convert.ToInt32(statementCreated), relationTypeCreated, existingEventId), cancellationToken, input.Tags, input.Namespace);
+                new(true, "already_stored", subjectId, statementId, existingClaimId.Value, Convert.ToInt32(subjectCreated), relationTypeCreated, existingEventId), cancellationToken, input.Tags, input.Namespace);
         }
 
         var source = input.Source ?? new SourceInput("user_message");
@@ -179,7 +191,7 @@ public sealed partial class KnowledgeStore
         var claimId = await InsertClaimAsync(connection, transaction, relationId, sourceId, candidate, cancellationToken);
         var eventId = structure is null ? await PersistRememberedEventAsync(connection, transaction, statementId, text, input.Namespace, input.Event, now, cancellationToken) : null;
         return await CompleteRememberAsync(connection, transaction, structure,
-            new(true, "stored", subjectId, statementId, claimId, Convert.ToInt32(subjectCreated) + Convert.ToInt32(statementCreated), relationTypeCreated, eventId), cancellationToken, input.Tags, input.Namespace);
+            new(true, "stored", subjectId, statementId, claimId, Convert.ToInt32(subjectCreated), relationTypeCreated, eventId), cancellationToken, input.Tags, input.Namespace);
     }
 
     /// <summary>Claim を論理撤回します。</summary>
@@ -302,13 +314,20 @@ public sealed partial class KnowledgeStore
         return await reader.ReadAsync(cancellationToken) ? ReadEntity(reader) : null;
     }
 
+    /// <summary>保存原文を取得します。</summary>
+    public async Task<StatementRecord?> GetStatementAsync(long id, CancellationToken cancellationToken = default)
+    {
+        await using var connection = await OpenAsync(cancellationToken);
+        return await ReadStatementAsync(connection, null, id, cancellationToken);
+    }
+
     /// <summary>Entity を名前で検索します。</summary>
     public async Task<IReadOnlyList<EntityRecord>> SearchEntitiesAsync(string query, int limit = 50, CancellationToken cancellationToken = default, bool includeRelated = true)
     {
         ArgumentNullException.ThrowIfNull(query);
         await using var connection = await OpenAsync(cancellationToken);
         await using var command = connection.CreateCommand();
-        command.CommandText = "SELECT id,canonical_name,class_name,namespace,metadata,created_at,updated_at FROM entities WHERE canonical_name LIKE $query ESCAPE '\\' ORDER BY canonical_name LIMIT $limit";
+        command.CommandText = "SELECT id,canonical_name,class_name,namespace,metadata,created_at,updated_at FROM entities WHERE class_name<>'StatementRef' AND canonical_name LIKE $query ESCAPE '\\' ORDER BY canonical_name LIMIT $limit";
         command.Parameters.AddWithValue("$query", $"%{EscapeLike(query)}%");
         command.Parameters.AddWithValue("$limit", Math.Clamp(limit, 1, 200));
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
@@ -326,12 +345,12 @@ public sealed partial class KnowledgeStore
         await using var connection = await OpenAsync(cancellationToken);
         await using var command = connection.CreateCommand();
         command.CommandText = """
-            SELECT e.entity_id,event_entity.canonical_name,e.actor_id,actor.canonical_name,e.occurred_at,e.ends_at,e.action,e.object_id,place.canonical_name,e.source_statement_id,statement.canonical_name
+            SELECT e.entity_id,event_entity.canonical_name,e.actor_id,actor.canonical_name,e.occurred_at,e.ends_at,e.action,e.object_id,place.canonical_name,e.source_statement_id,statement.text
             FROM events e
             JOIN entities event_entity ON event_entity.id=e.entity_id
             LEFT JOIN entities actor ON actor.id=e.actor_id
             LEFT JOIN entities place ON place.id=e.object_id
-            LEFT JOIN entities statement ON statement.id=e.source_statement_id
+            LEFT JOIN statements statement ON statement.id=e.source_statement_id
             WHERE event_entity.namespace=$namespace
               AND ($actor IS NULL OR actor.canonical_name LIKE $actor ESCAPE '\')
               AND ($place IS NULL OR place.canonical_name LIKE $place ESCAPE '\')
@@ -587,7 +606,10 @@ public sealed partial class KnowledgeStore
 
         var (actorId, _) = await GetOrCreateEntityAsync(connection, transaction, input.Actor.Trim(), "Actor", entityNamespace, now, token);
         var (placeId, _) = await GetOrCreateEntityAsync(connection, transaction, input.Place.Trim(), "Place", entityNamespace, now, token);
-        var canonicalName = string.IsNullOrWhiteSpace(input.CanonicalName) ? statementText : input.CanonicalName.Trim();
+        if (!string.IsNullOrWhiteSpace(input.CanonicalName)) ValidateAtomicEntityName(input.CanonicalName, "Event");
+        ValidateAtomicEntityName(input.Actor, "Actor");
+        ValidateAtomicEntityName(input.Place, "Place");
+        var canonicalName = string.IsNullOrWhiteSpace(input.CanonicalName) ? $"event:{statementId}" : input.CanonicalName.Trim();
         var (eventId, _) = await GetOrCreateEntityAsync(connection, transaction, canonicalName, "Event", entityNamespace, now, token);
         await using var insert = connection.CreateCommand();
         insert.Transaction = transaction;
@@ -652,6 +674,8 @@ public sealed partial class KnowledgeStore
 PRAGMA journal_mode=WAL;
 CREATE TABLE IF NOT EXISTS entities(id INTEGER PRIMARY KEY,class_name TEXT NOT NULL,canonical_name TEXT NOT NULL,namespace TEXT NOT NULL DEFAULT 'global',metadata TEXT,created_at TEXT NOT NULL,updated_at TEXT NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_entities_name ON entities(canonical_name);
+CREATE TABLE IF NOT EXISTS statements(id INTEGER PRIMARY KEY REFERENCES entities(id) ON DELETE CASCADE,text TEXT NOT NULL,namespace TEXT NOT NULL DEFAULT 'global',created_at TEXT NOT NULL,updated_at TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_statements_namespace ON statements(namespace,id);
 CREATE TABLE IF NOT EXISTS relation_types(id INTEGER PRIMARY KEY,canonical_name TEXT NOT NULL UNIQUE,category TEXT NOT NULL,directionality TEXT NOT NULL CHECK(directionality IN('directed','symmetric')),allow_strength INTEGER NOT NULL DEFAULT 0,inverse_name TEXT,freshness_policy TEXT NOT NULL CHECK(freshness_policy IN('permanent','periodic','volatile')),refresh_after_seconds INTEGER,description TEXT,created_at TEXT NOT NULL,updated_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS relation_type_aliases(relation_type_id INTEGER NOT NULL REFERENCES relation_types(id),alias TEXT NOT NULL UNIQUE,PRIMARY KEY(relation_type_id,alias));
 CREATE TABLE IF NOT EXISTS relations(id INTEGER PRIMARY KEY,relation_type_id INTEGER NOT NULL REFERENCES relation_types(id),relation_kind TEXT NOT NULL CHECK(relation_kind IN('directed','symmetric')),created_at TEXT NOT NULL);

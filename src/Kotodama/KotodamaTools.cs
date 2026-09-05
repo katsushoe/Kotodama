@@ -46,10 +46,13 @@ public sealed class KotodamaTools(KnowledgeStore store)
     }
 
     [McpServerTool(Name = "get_version"), Description("稼働中のKotodamaバージョンを返します。")]
-    public static object GetVersion() => new { name = "Kotodama", version = "0.14.0" };
+    public static object GetVersion() => new { name = "Kotodama", version = "0.15.0" };
 
     [McpServerTool(Name = "get_entity"), Description("IDでEntityを取得します。存在しない場合はnullです。")]
     public Task<EntityRecord?> GetEntity(long id, CancellationToken cancellationToken) => store.GetEntityAsync(id, cancellationToken);
+
+    [McpServerTool(Name = "get_statement", ReadOnly = true), Description("IDで保存原文を取得します。原文はEntityとは別のStatementとして保持されます。存在しない場合はnullです。")]
+    public Task<StatementRecord?> GetStatement(long id, CancellationToken cancellationToken) => store.GetStatementAsync(id, cancellationToken);
 
     [McpServerTool(Name = "search_entities"), Description("名前の部分一致を優先し、同じnamespaceの有効なPositive similar_to/equalsとSimilarityGroup所属を辿った関連候補を合計limit件まで返します。matchは到達理由とClaim経路です。related_pathは類似性の推移を意味しません。includeRelated=falseで名前一致のみです。")]
     public Task<IReadOnlyList<EntityRecord>> SearchEntities(string query, int limit = 50, bool includeRelated = true, CancellationToken cancellationToken = default) => store.SearchEntitiesAsync(query, limit, cancellationToken, includeRelated);
@@ -63,7 +66,7 @@ public sealed class KotodamaTools(KnowledgeStore store)
     [McpServerTool(Name = "propose_claim"), Description("Knowledge Candidateを規則検証し、妥当ならClaimとして保存します。")]
     public Task<OperationResult> ProposeClaim(ClaimCandidate candidate, CancellationToken cancellationToken) => store.ProposeClaimAsync(candidate, cancellationToken);
 
-    [McpServerTool(Name = "remember_knowledge"), Description("input.statementに原文、必須entities/relationsに抽出済み概念・関係を渡します。entitiesはkey,canonicalName,className,任意entityId/metadata、relationsはsubject/objectキー,relationType,polarity,confidence,任意strengthです。目安は概念2件・関係1件、上限100/200。意図的ゼロ件は空配列とreasonを指定します。構造エラーは最大3回修正しretryCountを増加、3回目も失敗すれば原文だけ保存します。DB障害は縮退しません。SourceStatementIdで原文へ追跡可能です。similar_toはstrength=類似度、confidence=判定確信度で推移性なし。equals/canonical_ofはNegative禁止。同一namespaceのみ。SimilarityGroup metadataは固定JSON文字列 {\"threshold\":0.5}（0～1）、不正値は0.5。Event入力も併用可能です。")]
+    [McpServerTool(Name = "remember_knowledge"), Description("input.statementに原文、必須entities/relationsに抽出済み概念・関係を渡します。原文はStatementへ保存され、Entityには保存されません。各Entityは1つの固有名・名詞・短い名詞句・識別子に分解し、文章、Statement/StatementRef class、原文全体をcanonicalNameへ指定できません。entitiesはkey,canonicalName,className,任意entityId/metadata、relationsはsubject/objectキー,relationType,polarity,confidence,任意strengthです。目安は概念2件・関係1件、上限100/200。意図的ゼロ件は空配列とreasonを指定します。構造エラーは最大3回修正しretryCountを増加、3回目も失敗すれば原文だけ保存します。SourceStatementIdで原文へ追跡可能です。")]
     public Task<RememberKnowledgeResult> RememberKnowledge(StructuredKnowledgeInput input, CancellationToken cancellationToken) => ValidateToolAsync(() => store.RememberStructuredKnowledgeAsync(input, cancellationToken));
 
     [McpServerTool(Name = "query_events"), Description("構造化Eventをactor、place、期間で検索します。予定の質問では質問文全体の部分一致よりこのToolを優先してください。期間はfrom以上to未満と重なるEventを返します。")]
@@ -93,7 +96,7 @@ public sealed class KotodamaTools(KnowledgeStore store)
     [McpServerTool(Name = "run_dream"), Description("期限超過したClaimをfalseにせずstaleへ変更します。")]
     public Task<DreamResult> RunDream(CancellationToken cancellationToken) => store.RunDreamAsync(cancellationToken);
 
-    [McpServerTool(Name = "create_entity"), Description("Entityを登録します。SimilarityGroupはmetadataに固定JSON文字列 {\"threshold\":0.5} を指定します。thresholdは0～1、不正JSON・欠落・範囲外は0.5へ正規化します。")]
+    [McpServerTool(Name = "create_entity"), Description("原子的なEntityを登録します。canonicalNameは1つの固有名・名詞・短い名詞句・識別子に限定し、文章とStatement/StatementRef classは拒否します。SimilarityGroupはmetadataに固定JSON文字列 {\"threshold\":0.5} を指定します。")]
     public Task<EntityRecord> CreateEntity(EntityInput input, CancellationToken cancellationToken) => store.CreateEntityAsync(input, cancellationToken);
 
     [McpServerTool(Name = "create_relation_type"), Description("RelationTypeと規則属性を登録します。")]

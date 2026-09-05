@@ -44,6 +44,9 @@ public sealed record EntityRecord(long Id, string CanonicalName, string ClassNam
     public EntitySearchMatch? Match { get; init; }
 }
 
+/// <summary>原文をEntityから分離して保持するStatementです。</summary>
+public sealed record StatementRecord(long Id, string Text, string Namespace, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);
+
 /// <summary>Relation と Claim を結合した検索結果です。</summary>
 public sealed record ClaimRecord(long ClaimId, long RelationId, string RelationType, RelationKind Kind, long SubjectId, long ObjectId, Polarity Polarity, double Confidence, double? AttributionConfidence, double? Strength, long? KnowledgeSubjectId, long? SourceId, string AssertionType, DateTimeOffset ObservedAt, DateTimeOffset? ValidFrom, DateTimeOffset? ValidTo, DateTimeOffset? LastConfirmedAt, ClaimStatus Status, long? SourceStatementId = null);
 

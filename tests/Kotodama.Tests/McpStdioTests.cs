@@ -88,7 +88,7 @@ public sealed class McpStdioTests : IAsyncLifetime
         var tools = await _client.ListToolsAsync(cancellationToken: CancellationToken.None);
 
         tools.Select(x => x.Name).Should().BeEquivalentTo(
-            "get_version", "get_entity", "search_entities", "propose_claim", "retract_claim", "reactivate_claim", "delete_claim",
+            "get_version", "get_entity", "get_statement", "search_entities", "propose_claim", "retract_claim", "reactivate_claim", "delete_claim",
             "query_claims", "query_relations", "get_neighbors", "get_knowledge_context",
             "create_tag", "list_tags", "rename_tag", "add_tag_alias", "merge_tags", "set_knowledge_tags", "query_tagged_statements", "query_tagged_claims",
             "run_dream", "create_entity", "create_relation_type", "update_relation_type", "delete_relation_type", "create_event", "remember_knowledge", "query_events", "get_equivalent_entities", "merge_similarity_groups");
@@ -100,7 +100,7 @@ public sealed class McpStdioTests : IAsyncLifetime
         var result = await _client.CallToolAsync("get_version", cancellationToken: CancellationToken.None);
 
         result.IsError.Should().NotBeTrue();
-        GetResponseJson(result).Should().Contain("Kotodama").And.Contain("0.14.0");
+        GetResponseJson(result).Should().Contain("Kotodama").And.Contain("0.15.0");
     }
 
     [Fact]
@@ -159,14 +159,19 @@ public sealed class McpStdioTests : IAsyncLifetime
         {
             ["input"] = new { statement = text, entities = Array.Empty<object>(), relations = Array.Empty<object>(), reason = "Statement-only test" },
         });
-        var searched = await CallAsync("search_entities", new Dictionary<string, object?>
+        using var rememberedDocument = JsonDocument.Parse(GetResponseJson(remembered));
+        var statementId = rememberedDocument.RootElement.GetProperty("statementId").GetInt64();
+        var statement = await CallAsync("get_statement", new Dictionary<string, object?>
         {
-            ["query"] = text,
+            ["id"] = statementId,
         });
+        var searched = await CallAsync("search_entities", new Dictionary<string, object?> { ["query"] = text });
 
         GetResponseJson(remembered).Should().Contain("stored");
-        using var document = JsonDocument.Parse(GetResponseJson(searched));
-        document.RootElement.EnumerateArray().Select(x => x.GetProperty("canonicalName").GetString()).Should().Contain(text);
+        using var statementDocument = JsonDocument.Parse(GetResponseJson(statement));
+        statementDocument.RootElement.GetProperty("text").GetString().Should().Be(text);
+        using var searchDocument = JsonDocument.Parse(GetResponseJson(searched));
+        searchDocument.RootElement.GetArrayLength().Should().Be(0);
     }
 
     [Fact]

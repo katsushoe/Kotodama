@@ -4,7 +4,9 @@ namespace Kotodama;
 
 /// <summary>抽出済みの概念と関係を伴う知識登録要求です。</summary>
 public sealed record StructuredKnowledgeInput(
+    [Description("改変せずStatementへ保存する原文。Entity名には使用しません。")]
     string Statement,
+    [Description("原文から分解した原子的な概念。各要素は1つの固有名・名詞・短い名詞句・識別子です。")]
     IReadOnlyList<RememberedEntityInput> Entities,
     IReadOnlyList<RememberedRelationInput> Relations,
     string? Reason = null,
@@ -21,7 +23,13 @@ public sealed record StructuredKnowledgeInput(
     IReadOnlyList<string>? Tags = null);
 
 /// <summary>keyで関係から参照する概念。既存EntityはentityIdを指定します。</summary>
-public sealed record RememberedEntityInput(string Key, string CanonicalName, string ClassName = "Entity", long? EntityId = null, string? Metadata = null);
+public sealed record RememberedEntityInput(
+    string Key,
+    [Description("文章や原文全体ではない、1つの固有名・名詞・短い名詞句・識別子。")]
+    string CanonicalName,
+    string ClassName = "Entity",
+    long? EntityId = null,
+    string? Metadata = null);
 
 /// <summary>subject/objectは同じ要求内のEntity keyです。</summary>
 public sealed record RememberedRelationInput(string Subject, string Object, string RelationType, Polarity Polarity = Polarity.Positive, double Confidence = 1, double? Strength = null);

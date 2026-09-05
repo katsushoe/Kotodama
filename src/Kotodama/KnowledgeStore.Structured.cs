@@ -83,6 +83,7 @@ public sealed partial class KnowledgeStore
         {
             if (entity is null || string.IsNullOrWhiteSpace(entity.Key) || string.IsNullOrWhiteSpace(entity.CanonicalName) || string.IsNullOrWhiteSpace(entity.ClassName))
                 throw new ArgumentException("Each entity requires key, canonicalName and className.");
+            ValidateAtomicEntityName(entity.CanonicalName, entity.ClassName, input.Statement);
             if (!keys.Add(entity.Key)) throw new ArgumentException("Entity keys must be unique.");
         }
         foreach (var relation in input.Relations)

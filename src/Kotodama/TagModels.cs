@@ -12,7 +12,7 @@ public sealed record TagQueryInput(IReadOnlyList<string>? Tags = null, IReadOnly
     bool IncludeRetracted = false, bool IncludeStale = false, DateTimeOffset? ValidAt = null);
 
 /// <summary>保存文のタグ検索結果です。</summary>
-public sealed record TaggedStatement(EntityRecord Statement, IReadOnlyList<TagAssignment> Tags);
+public sealed record TaggedStatement(StatementRecord Statement, IReadOnlyList<TagAssignment> Tags);
 
 /// <summary>Claimのタグ検索結果です。</summary>
 public sealed record TaggedClaim(ClaimRecord Claim, IReadOnlyList<TagAssignment> Tags);

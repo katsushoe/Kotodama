@@ -94,6 +94,7 @@ public sealed partial class KnowledgeStore
         var threshold = count == 0 ? DefaultSimilarityThreshold
             : (ReadThreshold(a.Metadata) * membersA.Count + ReadThreshold(b.Metadata) * membersB.Count) / count;
         var name = string.IsNullOrWhiteSpace(canonicalName) ? $"SimilarityGroup:{Guid.NewGuid():N}" : canonicalName.Trim();
+        ValidateAtomicEntityName(name, "SimilarityGroup");
         var (groupId, created) = await GetOrCreateEntityAsync(connection, transaction, name, "SimilarityGroup", a.Namespace, Now(), cancellationToken);
         if (!created) throw new ArgumentException("Merged group canonicalName must be new.");
         await SetMetadataAsync(connection, transaction, groupId, JsonSerializer.Serialize(new { threshold }), cancellationToken);

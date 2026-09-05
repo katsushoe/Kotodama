@@ -27,7 +27,7 @@ internal static class TagProtocolChecks
         saved.GetProperty("ok").GetBoolean().Should().BeTrue();
         var statements = await CallAsync(client, "query_tagged_statements", new() { ["input"] = new { tags = new[] { "protocol", "shared" }, tagMatch = "all" } });
         statements.GetArrayLength().Should().Be(1);
-        statements[0].GetProperty("statement").GetProperty("canonicalName").GetString().Should().Be("Protocol fact");
+        statements[0].GetProperty("statement").GetProperty("text").GetString().Should().Be("Protocol fact");
         var claims = await CallAsync(client, "query_tagged_claims", new() { ["input"] = new { tags = new[] { "protocol" } } });
         claims.GetArrayLength().Should().Be(2);
         claims[0].GetProperty("tags")[0].GetProperty("origin").GetString().Should().Be("inherited");

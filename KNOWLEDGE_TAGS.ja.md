@@ -4,7 +4,7 @@
 
 - Status: 採用。CR-2026-09-05-knowledge-tagsへの対応です。
 - Context: 本文に作品名を含まない保存文とClaimを、namespace内の共通分類から取得します。
-- Decision: Tag ID、正規名・別名の共有索引、Statement/Claimとの多対多関連をSQLiteに追加します。保存文は既存Statement Entityです。
+- Decision: Tag ID、正規名・別名の共有索引、Statement/Claimとの多対多関連をSQLiteに追加します。保存文は専用Statementです。
 - 代替案: 文字列の各レコードへの重複保存は改名・統合の不整合を招くため不採用です。汎用Relationだけの分類は直接検索と別名管理を提供しないため不採用です。
 - 影響範囲: 保存トランザクション、追加MCP Tool、サービス接続CLI、DB初期化、テスト、利用文書です。
 - セキュリティ条件: namespaceは分類境界であり認可機構ではありません。既存Transport認証を維持し、タグ・対象のnamespace不一致は拒否します。SQL値はパラメーター化します。

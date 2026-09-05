@@ -190,7 +190,7 @@ public sealed class KnowledgeTagTests : IAsyncLifetime
         }
         await _store.InitializeAsync();
         await _store.InitializeAsync();
-        (await _store.GetEntityAsync(saved.StatementId))!.CanonicalName.Should().Be("legacy text");
+        (await _store.GetStatementAsync(saved.StatementId))!.Text.Should().Be("legacy text");
         (await _store.QueryClaimsAsync()).Should().ContainSingle();
         var enriched = await _store.RememberStructuredKnowledgeAsync(Example("legacy text", "new"));
         enriched.StatementId.Should().Be(saved.StatementId);

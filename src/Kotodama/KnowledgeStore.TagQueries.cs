@@ -14,7 +14,7 @@ public sealed partial class KnowledgeStore
         var results = new List<TaggedStatement>();
         foreach (var id in ids)
         {
-            var statement = await ReadEntityAsync(connection, transaction, id, cancellationToken);
+            var statement = await ReadStatementAsync(connection, transaction, id, cancellationToken);
             results.Add(new(statement!, await ReadTagAssignmentsAsync(connection, transaction, "statement", id, cancellationToken)));
         }
         return results;
@@ -59,7 +59,7 @@ public sealed partial class KnowledgeStore
         if (ids.Count == 0 || unknown && input.TagMatch == "all") return [];
 
         var sql = kind == "statement"
-            ? "SELECT e.id FROM entities e WHERE e.class_name='Statement' AND e.namespace=$namespace AND e.id>$after"
+            ? "SELECT e.id FROM statements e WHERE e.namespace=$namespace AND e.id>$after"
             : "SELECT c.id FROM claims c WHERE c.id>$after AND ($retracted=1 OR c.status<>'retracted') AND ($stale=1 OR c.status<>'stale') AND ($at IS NULL OR (c.valid_from IS NULL OR c.valid_from<=$at) AND (c.valid_to IS NULL OR c.valid_to>$at))";
         var target = kind == "statement" ? "e.id" : "c.id";
         // kindは内部定数だけを渡し、利用者の値をSQL識別子へ展開しません。
@@ -139,7 +139,7 @@ public sealed partial class KnowledgeStore
             if (subject is null || subject.Namespace != input.Namespace) throw new ArgumentException("knowledgeSubjectId not found in namespace.");
         }
         var sql = input.TargetKind == "statement"
-            ? "SELECT DISTINCT e.id FROM entities e WHERE e.class_name='Statement' AND e.namespace=$namespace AND ($subject IS NULL OR EXISTS(SELECT 1 FROM claims c JOIN directed_relations d ON d.relation_id=c.relation_id WHERE d.object_id=e.id AND c.assertion_type='remembered_text' AND c.knowledge_subject_id=$subject))"
+            ? "SELECT DISTINCT e.id FROM statements e WHERE e.namespace=$namespace AND ($subject IS NULL OR EXISTS(SELECT 1 FROM claims c JOIN directed_relations d ON d.relation_id=c.relation_id WHERE d.object_id=e.id AND c.assertion_type='remembered_text' AND c.knowledge_subject_id=$subject))"
             : "SELECT c.id FROM claims c JOIN relations r ON r.id=c.relation_id LEFT JOIN directed_relations d ON d.relation_id=r.id LEFT JOIN symmetric_relations s ON s.relation_id=r.id JOIN entities a ON a.id=COALESCE(d.subject_id,s.entity_a_id) JOIN entities b ON b.id=COALESCE(d.object_id,s.entity_b_id) WHERE a.namespace=$namespace AND b.namespace=$namespace AND ($subject IS NULL OR c.knowledge_subject_id=$subject)";
         var target = input.TargetKind == "statement" ? "e.id" : "c.id";
         await using var command = TagCommand(connection, transaction, sql, ("$namespace", input.Namespace), ("$subject", input.KnowledgeSubjectId));
