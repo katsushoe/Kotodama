@@ -34,13 +34,13 @@ public sealed class StructuredKnowledgeTests : IAsyncLifetime
         var claim = (await _store.QueryClaimsAsync(relationType: "similar_to")).Should().ContainSingle().Subject;
         result.Ok.Should().BeTrue();
         result.StructureStatus.Should().Be("structured");
-        result.CreatedEntities.Should().Be(4);
+        result.CreatedEntities.Should().Be(3);
         result.ClaimIds.Should().Equal(claim.ClaimId);
         result.EntityIds["a"].Should().Be(claim.SubjectId);
         claim.Confidence.Should().Be(.9);
         claim.Strength.Should().Be(.7);
         claim.SourceStatementId.Should().Be(result.StatementId);
-        (await _store.GetEntityAsync(result.StatementId))!.CanonicalName.Should().Be(input.Statement);
+        (await _store.GetStatementAsync(result.StatementId))!.Text.Should().Be(input.Statement);
         await using var db = new SqliteConnection($"Data Source={_path}");
         await db.OpenAsync();
         await using var command = db.CreateCommand();
@@ -103,7 +103,8 @@ public sealed class StructuredKnowledgeTests : IAsyncLifetime
         fallback.Reason.Should().Contain("undefined");
         fallback.EventId.Should().BeNull();
         fallback.EntityIds.Should().BeEmpty();
-        (await _store.SearchEntitiesAsync("")).Should().HaveCount(2);
+        (await _store.SearchEntitiesAsync("")).Should().ContainSingle(x => x.ClassName == "KnowledgeSubject");
+        (await _store.GetStatementAsync(fallback.StatementId))!.Text.Should().Be(input.Statement);
         (await _store.QueryEventsAsync()).Should().BeEmpty();
     }
 
@@ -117,6 +118,24 @@ public sealed class StructuredKnowledgeTests : IAsyncLifetime
         var oversized = await _store.RememberStructuredKnowledgeAsync(Example() with { Entities = Enumerable.Range(0, 101).Select(i => new RememberedEntityInput($"e{i}", $"E{i}")).ToArray() });
         oversized.Reason.Should().Contain("100");
         (await _store.QueryClaimsAsync()).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Remember_WhenEntityContainsWholeSentence_RejectsStructure()
+    {
+        var statement = "Kotodamaは原文をStatementへ保存します。";
+        var result = await _store.RememberStructuredKnowledgeAsync(Example() with
+        {
+            Statement = statement,
+            Entities = [new("sentence", statement)],
+            Relations = [],
+            Reason = "Relationなし"
+        });
+
+        result.Ok.Should().BeFalse();
+        result.StructureStatus.Should().Be("rejected");
+        result.Reason.Should().Contain("atomic terms");
+        (await _store.SearchEntitiesAsync("")).Should().BeEmpty();
     }
 
     [Fact]
@@ -287,7 +306,7 @@ public sealed class StructuredKnowledgeTests : IAsyncLifetime
             await command.ExecuteNonQueryAsync();
         }
         await _store.InitializeAsync();
-        (await _store.GetEntityAsync(remembered.StatementId))!.CanonicalName.Should().Be("Legacy statement");
+        (await _store.GetStatementAsync(remembered.StatementId))!.Text.Should().Be("Legacy statement");
         (await _store.QueryClaimsAsync(relationType: "similar_to")).Should().HaveCount(1);
         (await _store.ProposeClaimAsync(new(a.Id, a.Id, "equals"))).Ok.Should().BeTrue();
         var structured = await _store.RememberStructuredKnowledgeAsync(Example());

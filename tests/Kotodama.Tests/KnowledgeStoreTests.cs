@@ -51,16 +51,65 @@ public sealed class KnowledgeStoreTests : IAsyncLifetime
     public async Task RememberKnowledge_WhenTextIsNew_StoresStructuredStatement()
     {
         var result = await _store.RememberKnowledgeAsync(new("定例バックアップは毎週金曜日の18時に実行します。"));
-        var statement = await _store.GetEntityAsync(result.StatementId);
+        var statement = await _store.GetStatementAsync(result.StatementId);
         var claims = await _store.QueryClaimsAsync(result.SubjectId, "remembers");
 
         result.Ok.Should().BeTrue();
         result.Status.Should().Be("stored");
-        result.CreatedEntities.Should().Be(2);
+        result.CreatedEntities.Should().Be(1);
         result.CreatedRelationType.Should().BeTrue();
         statement.Should().NotBeNull();
-        statement!.ClassName.Should().Be("Statement");
+        statement!.Text.Should().Be("定例バックアップは毎週金曜日の18時に実行します。");
         claims.Should().ContainSingle(x => x.ClaimId == result.ClaimId && x.AssertionType == "remembered_text");
+    }
+
+    [Theory]
+    [InlineData("Kotodamaは文章をEntityへ保存します。", "Entity")]
+    [InlineData("This canonical name contains far too many separate words to be one atomic entity", "Entity")]
+    [InlineData("保存原文", "Statement")]
+    [InlineData("statement:1", "StatementRef")]
+    public async Task CreateEntity_WhenNameIsNotAtomic_IsRejected(string name, string className)
+    {
+        await _store.Invoking(x => x.CreateEntityAsync(new(name, className)))
+            .Should().ThrowAsync<ArgumentException>();
+    }
+
+    [Fact]
+    public async Task Initialize_WhenLegacyStatementEntityExists_MovesTextOutOfEntity()
+    {
+        var legacyPath = Path.Combine(Path.GetTempPath(), $"kotodama-legacy-{Guid.NewGuid():N}.db");
+        try
+        {
+            await using (var connection = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={legacyPath}"))
+            {
+                await connection.OpenAsync();
+                await using var command = connection.CreateCommand();
+                command.CommandText = """
+                    CREATE TABLE entities(id INTEGER PRIMARY KEY,class_name TEXT NOT NULL,canonical_name TEXT NOT NULL,namespace TEXT NOT NULL,metadata TEXT,created_at TEXT NOT NULL,updated_at TEXT NOT NULL);
+                    INSERT INTO entities VALUES(7,'Statement','Kotodamaは原文を保存します。','global',NULL,'2026-09-01T00:00:00.0000000+00:00','2026-09-01T00:00:00.0000000+00:00');
+                    """;
+                await command.ExecuteNonQueryAsync();
+            }
+
+            var migrated = new KnowledgeStore(legacyPath, TimeProvider.System);
+            await migrated.InitializeAsync();
+
+            (await migrated.GetStatementAsync(7))!.Text.Should().Be("Kotodamaは原文を保存します。");
+            var reference = await migrated.GetEntityAsync(7);
+            reference!.ClassName.Should().Be("StatementRef");
+            reference.CanonicalName.Should().Be("statement:7");
+            (await migrated.SearchEntitiesAsync("Kotodamaは原文を保存します。", includeRelated: false)).Should().BeEmpty();
+            await using var verified = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={legacyPath};Foreign Keys=True");
+            await verified.OpenAsync();
+            await using var foreignKeys = verified.CreateCommand();
+            foreignKeys.CommandText = "SELECT COUNT(*) FROM pragma_foreign_key_check";
+            Convert.ToInt32(await foreignKeys.ExecuteScalarAsync()).Should().Be(0);
+        }
+        finally
+        {
+            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+            if (File.Exists(legacyPath)) File.Delete(legacyPath);
+        }
     }
 
     [Fact]

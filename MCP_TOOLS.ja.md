@@ -1,6 +1,6 @@
 # MCP Tool仕様
 
-Kotodamaはstdio／Streamable HTTP Transportで29個のToolを提供します。プロパティ名はJSONではcamelCaseを使用します。
+Kotodamaはstdio／Streamable HTTP Transportで30個のToolを提供します。プロパティ名はJSONではcamelCaseを使用します。
 
 知識タグの8個のTool、`remember_knowledge.input.tags`、エラー、移行、サービス接続CLIの契約は[知識タグ仕様](KNOWLEDGE_TAGS.ja.md)を参照してください。
 
@@ -28,6 +28,7 @@ Promptは利用者またはクライアントが選択して使用します。Se
 | `get_version` | なし | `{name, version}`。副作用なし |
 | `create_entity` | `input` | Entityを追加し`EntityRecord`を返す |
 | `get_entity` | `id` | Entityまたは`null` |
+| `get_statement` | `id` | Entityから分離された保存原文または`null` |
 | `search_entities` | `query`, `limit`, `includeRelated` | 名前一致と類似・同値・グループ経由の関連候補。合計1～200件 |
 | `get_equivalent_entities` | `entityId` | 現在有効な同値集合（自身を含む） |
 | `merge_similarity_groups` | `groupAId`, `groupBId`, 任意canonicalName | 明示操作で加重thresholdの新グループを作成し、旧所属を撤回 |
@@ -120,7 +121,7 @@ Promptは利用者またはクライアントが選択して使用します。Se
 }
 ```
 
-`statement`へ原文、`entities/relations`へ抽出済みの概念・関係を渡します。空配列は理由が必要です。従来の`text`のみの入力は受け付けません。通常の保存は原子的で、再入力上限後の構造エラー時だけ原文保存に縮退します。Eventの併用も可能です。出力、語彙制約、SimilarityGroup、既存データとの互換性の詳細は[構造化拡張の契約](STRUCTURED_KNOWLEDGE.ja.md)を参照してください。
+`statement`へ原文、`entities/relations`へ抽出済みの概念・関係を渡します。原文はStatementへ保存し、各Entityは1つの固有名・名詞・短い名詞句・識別子へ分解します。文章や原文全体をEntity名にすると拒否されます。空配列は理由が必要です。従来の`text`のみの入力は受け付けません。通常の保存は原子的で、再入力上限後の構造エラー時だけ原文保存に縮退します。
 
 ### query_events
 

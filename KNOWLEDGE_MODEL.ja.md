@@ -3,6 +3,7 @@
 ## 概念
 
 - `Entity`: 人、組織、物、概念、Event等の識別対象です。
+- `Statement`: 会話由来の原文です。Entityとは別に保存し、`statementId`で参照します。
 - `RelationType`: Relationの意味、方向、strength可否、鮮度規則を定義します。
 - `Relation`: 2つのEntity間の構造です。有向または対称です。
 - `Claim`: Relationについて、誰が何をどの確からしさで主張したかを表します。

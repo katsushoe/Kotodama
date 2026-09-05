@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted（2026-09-04）。未決だった9項目は本書のDecisionとして正式採用しました。外部契約は [STRUCTURED_KNOWLEDGE.ja.md](STRUCTURED_KNOWLEDGE.ja.md) を正本とします。
+Accepted（2026-09-04、2026-09-06改訂）。未決だった9項目は本書のDecisionとして正式採用しました。外部契約は [STRUCTURED_KNOWLEDGE.ja.md](STRUCTURED_KNOWLEDGE.ja.md) を正本とします。
 
 ## Context
 
@@ -13,6 +13,8 @@ Accepted（2026-09-04）。未決だった9項目は本書のDecisionとして�
 サーバにLLMを組み込まず、抽出と修正リトライは呼び出し元の責務とします。サーバは必須配列と制約を検証し、retryCount=3で構造エラーなら原文のみ保存します。再入力回数は呼び出し側が申告する制御情報であり、権限・認証の代用にはしません。
 
 既存の原文保存処理を共用し、構造部分にはsavepointを置きます。通常の構造エラーでは外側のトランザクションを破棄し、最終失敗ではsavepointまで戻して原文だけをコミットします。DB障害とキャンセルを入力エラーに変換しません。新APIで追加するEventも構造部分に含めます。
+
+原文は専用`statements`テーブルへ保存し、本文をEntity名にしません。既存のRelation・Source・Event・Tag参照を維持する内部`StatementRef`だけが同一IDを持ち、通常のEntity検索から除外されます。既存`Statement` Entityは初期化時に本文を移して参照へ変換します。
 
 出典参照はsources.source_statement_idに格納し、Claim検索でJOINして返します。Source IDとEntity IDは区別します。重複判定はStatement・Relation・極性・strength・有効期間で行い、異なる主張を一括で上書きしません。既存Statementに対する構造追加を許可します。
 
@@ -30,7 +32,7 @@ Accepted（2026-09-04）。未決だった9項目は本書のDecisionとして�
 6. 統合ポリシー: 明示依頼に応じた操作のみ。定期スキャンは追加しない。
 7. category: similar_to=semantic、equals=identity、member_of=classification。
 8. 上限: entities=100、relations=200。
-9. canonicalName: 明示名称。統合時の省略は `SimilarityGroup:<GUID>`。任意のcreate_entityでは従来どおり名称必須。
+9. canonicalName: 1件を1つの固有名・名詞・短い名詞句・識別子へ限定する。文章・原文全体・予約Statement classは拒否する。統合時の省略は `SimilarityGroup:<GUID>`。
 
 ## 代替案と不採用理由
 
