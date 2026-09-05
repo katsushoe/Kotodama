@@ -57,6 +57,9 @@ public sealed class McpStdioTests : IAsyncLifetime
     }
 
     [Fact]
+    public Task Tags_ThroughStdio_PreserveSchemaStateAndErrors() => TagProtocolChecks.VerifyAsync(_client);
+
+    [Fact]
     public async Task ListPrompts_ReturnsKotodamaGluePrompt()
     {
         var prompts = await _client.ListPromptsAsync(cancellationToken: CancellationToken.None);
@@ -87,6 +90,7 @@ public sealed class McpStdioTests : IAsyncLifetime
         tools.Select(x => x.Name).Should().BeEquivalentTo(
             "get_version", "get_entity", "search_entities", "propose_claim", "retract_claim", "reactivate_claim", "delete_claim",
             "query_claims", "query_relations", "get_neighbors", "get_knowledge_context",
+            "create_tag", "list_tags", "rename_tag", "add_tag_alias", "merge_tags", "set_knowledge_tags", "query_tagged_statements", "query_tagged_claims",
             "run_dream", "create_entity", "create_relation_type", "update_relation_type", "delete_relation_type", "create_event", "remember_knowledge", "query_events", "get_equivalent_entities", "merge_similarity_groups");
     }
 
@@ -96,7 +100,7 @@ public sealed class McpStdioTests : IAsyncLifetime
         var result = await _client.CallToolAsync("get_version", cancellationToken: CancellationToken.None);
 
         result.IsError.Should().NotBeTrue();
-        GetResponseJson(result).Should().Contain("Kotodama").And.Contain("0.13.0");
+        GetResponseJson(result).Should().Contain("Kotodama").And.Contain("0.14.0");
     }
 
     [Fact]

@@ -45,10 +45,10 @@ public sealed class InstallerDefinitionTests
             .And.Contain("Kotodama MCP Server");
         action.Attribute("Return")?.Value.Should().Be("ignore");
         action.Attribute("Execute")?.Value.Should().Be("immediate");
-        processAction.Attribute("ExeCommand")?.Value.Should().Contain("taskkill.exe")
-            .And.Contain("/F")
-            .And.Contain("/IM")
-            .And.Contain("Kotodama.exe");
+        processAction.Attribute("ExeCommand")?.Value.Should().Contain("Where-Object Path -eq '[BinFolder]Kotodama.exe'")
+            .And.Contain("Stop-Process -Force")
+            .And.Contain("-WindowStyle Hidden")
+            .And.NotContain("taskkill.exe");
         processAction.Attribute("Return")?.Value.Should().Be("ignore");
         processAction.Attribute("Execute")?.Value.Should().Be("immediate");
         document.Descendants(wix + "InstallUISequence").Should().BeEmpty();

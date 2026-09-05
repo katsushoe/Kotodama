@@ -22,7 +22,7 @@
     <CustomAction
       Id="StopKotodamaProcesses"
       Directory="SystemFolder"
-      ExeCommand="&quot;[SystemFolder]taskkill.exe&quot; /F /T /IM &quot;Kotodama.exe&quot;"
+      ExeCommand="&quot;[SystemFolder]WindowsPowerShell\v1.0\powershell.exe&quot; -NoProfile -NonInteractive -WindowStyle Hidden -Command &quot;Get-Process Kotodama -ErrorAction SilentlyContinue | Where-Object Path -eq '[BinFolder]Kotodama.exe' | Stop-Process -Force&quot;"
       Execute="immediate"
       Impersonate="yes"
       Return="ignore" />

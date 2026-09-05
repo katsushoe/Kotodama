@@ -48,6 +48,7 @@ public sealed partial class KnowledgeStore
 
         await EnsureEventColumnsAsync(connection, cancellationToken);
         await InitializeStructuredKnowledgeAsync(connection, cancellationToken);
+        await InitializeTagsAsync(connection, cancellationToken);
     }
 
     /// <summary>Entity を登録します。</summary>
@@ -142,6 +143,7 @@ public sealed partial class KnowledgeStore
         if (!double.IsFinite(input.Confidence) || input.Confidence is < 0 or > 1) throw new ArgumentOutOfRangeException(nameof(input), "confidence must be between 0 and 1");
         if (input.ValidFrom is not null && input.ValidTo is not null && input.ValidTo <= input.ValidFrom) throw new ArgumentException("valid_to must be greater than valid_from", nameof(input));
         ValidateRememberedEvent(input.Event);
+        NormalizeTagNames(input.Tags);
 
         var text = structure is null ? input.Text.Trim() : input.Text;
         var now = Now();
@@ -157,7 +159,7 @@ public sealed partial class KnowledgeStore
             await ReconfirmRememberedClaimAsync(connection, transaction, existingClaimId.Value, input.Confidence, now, cancellationToken);
             var existingEventId = structure is null ? await PersistRememberedEventAsync(connection, transaction, statementId, text, input.Namespace, input.Event, now, cancellationToken) : null;
             return await CompleteRememberAsync(connection, transaction, structure,
-                new(true, "already_stored", subjectId, statementId, existingClaimId.Value, Convert.ToInt32(subjectCreated) + Convert.ToInt32(statementCreated), relationTypeCreated, existingEventId), cancellationToken);
+                new(true, "already_stored", subjectId, statementId, existingClaimId.Value, Convert.ToInt32(subjectCreated) + Convert.ToInt32(statementCreated), relationTypeCreated, existingEventId), cancellationToken, input.Tags, input.Namespace);
         }
 
         var source = input.Source ?? new SourceInput("user_message");
@@ -177,7 +179,7 @@ public sealed partial class KnowledgeStore
         var claimId = await InsertClaimAsync(connection, transaction, relationId, sourceId, candidate, cancellationToken);
         var eventId = structure is null ? await PersistRememberedEventAsync(connection, transaction, statementId, text, input.Namespace, input.Event, now, cancellationToken) : null;
         return await CompleteRememberAsync(connection, transaction, structure,
-            new(true, "stored", subjectId, statementId, claimId, Convert.ToInt32(subjectCreated) + Convert.ToInt32(statementCreated), relationTypeCreated, eventId), cancellationToken);
+            new(true, "stored", subjectId, statementId, claimId, Convert.ToInt32(subjectCreated) + Convert.ToInt32(statementCreated), relationTypeCreated, eventId), cancellationToken, input.Tags, input.Namespace);
     }
 
     /// <summary>Claim を論理撤回します。</summary>

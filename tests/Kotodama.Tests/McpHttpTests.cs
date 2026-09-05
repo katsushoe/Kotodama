@@ -66,11 +66,60 @@ public sealed class McpHttpTests : IAsyncLifetime
     }
 
     [Fact]
+    public Task Tags_ThroughHttp_PreserveSchemaStateAndErrors() => TagProtocolChecks.VerifyAsync(_client);
+
+    [Fact]
+    public async Task CallCommand_ThroughHttp_UsesSameToolsAndErrorContract()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"kotodama-cli-{Guid.NewGuid():N}.json");
+        try
+        {
+            await File.WriteAllTextAsync(path, "{\"name\":\"CLI tag\"}");
+            var created = await RunToolCommandAsync("create_tag", path);
+            created.ExitCode.Should().Be(0);
+            created.Output.Should().Contain("CLI tag");
+            var tags = await _client.CallToolAsync("list_tags");
+            GetResponseJson(tags).Should().Contain("CLI tag");
+            await File.WriteAllTextAsync(path, "{\"input\":{\"tags\":[\"CLI tag\"],\"tagMatch\":\"invalid\"}}");
+            (await RunToolCommandAsync("query_tagged_claims", path)).ExitCode.Should().Be(1);
+            await File.WriteAllTextAsync(path, "[]");
+            (await RunToolCommandAsync("list_tags", path)).ExitCode.Should().Be(1);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    private async Task<(int ExitCode, string Output)> RunToolCommandAsync(string tool, string path)
+    {
+        var start = new ProcessStartInfo("dotnet") { UseShellExecute = false, RedirectStandardOutput = true, CreateNoWindow = true };
+        start.ArgumentList.Add(typeof(KnowledgeStore).Assembly.Location);
+        start.ArgumentList.Add("call");
+        start.ArgumentList.Add(tool);
+        start.ArgumentList.Add(path);
+        start.Environment["KOTODAMA_HTTP_URL"] = _endpoint.GetLeftPart(UriPartial.Authority);
+        start.Environment["KOTODAMA_HTTP_TOKEN"] = HttpToken;
+        using var process = Process.Start(start) ?? throw new InvalidOperationException("CLI did not start.");
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+        try
+        {
+            var output = await process.StandardOutput.ReadToEndAsync(timeout.Token);
+            await process.WaitForExitAsync(timeout.Token);
+            return (process.ExitCode, output);
+        }
+        finally
+        {
+            if (!process.HasExited) process.Kill(true);
+        }
+    }
+
+    [Fact]
     public async Task GetVersion_ThroughHttp_ReturnsServerIdentity()
     {
         var result = await _client.CallToolAsync("get_version", cancellationToken: CancellationToken.None);
 
-        GetResponseJson(result).Should().Contain("Kotodama").And.Contain("0.13.0");
+        GetResponseJson(result).Should().Contain("Kotodama").And.Contain("0.14.0");
     }
 
     [Fact]
