@@ -142,6 +142,39 @@ public sealed class KnowledgeStoreQueryTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Initialize_WhenProjectionRowIsMissing_BackfillsFlattenedClaim()
+    {
+        var result = await _store.ProposeClaimAsync(new(
+            _subject.Id,
+            _object.Id,
+            "related_to",
+            Source: new SourceInput("file", Title: "projection-source.md")));
+        await using (var connection = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={_path}"))
+        {
+            await connection.OpenAsync();
+            await using var delete = connection.CreateCommand();
+            delete.CommandText = "DELETE FROM claim_search WHERE claim_id=$id";
+            delete.Parameters.AddWithValue("$id", result.Id);
+            await delete.ExecuteNonQueryAsync();
+        }
+
+        await _store.InitializeAsync();
+
+        await using var reopened = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={_path}");
+        await reopened.OpenAsync();
+        await using var query = reopened.CreateCommand();
+        query.CommandText = "SELECT subject_name,relation_type,object_name,source_title,status FROM claim_search WHERE claim_id=$id";
+        query.Parameters.AddWithValue("$id", result.Id);
+        await using var reader = await query.ExecuteReaderAsync();
+        (await reader.ReadAsync()).Should().BeTrue();
+        reader.GetString(0).Should().Be("QuerySubject");
+        reader.GetString(1).Should().Be("related_to");
+        reader.GetString(2).Should().Be("QueryObject");
+        reader.GetString(3).Should().Be("projection-source.md");
+        reader.GetString(4).Should().Be("active");
+    }
+
+    [Fact]
     public async Task CreateEvent_WhenObjectIsMissing_ThrowsBeforeCreatingEntity()
     {
         var before = await _store.SearchEntitiesAsync("InvalidEvent");
