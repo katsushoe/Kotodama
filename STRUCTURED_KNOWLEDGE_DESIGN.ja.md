@@ -6,17 +6,17 @@ Accepted（2026-09-04、2026-09-06改訂）。未決だった9項目は本書の
 
 ## Context
 
-原文Statementとremembersだけでは、概念を起点とする検索ができません。既存のEntity/Relation/Claim、SQLiteトランザクション、Source、dreamを活用して、呼び出し元が抽出済みの構造を一括登録できるようにします。
+原文を保持せず、概念を起点とする検索を可能にします。既存のEntity/Relation/Claim、SQLiteトランザクション、Source、dreamを活用して、呼び出し元が抽出済みの構造を一括登録できるようにします。
 
 ## Decision
 
-サーバにLLMを組み込まず、抽出と修正リトライは呼び出し元の責務とします。サーバは必須配列と制約を検証し、retryCount=3で構造エラーなら原文のみ保存します。再入力回数は呼び出し側が申告する制御情報であり、権限・認証の代用にはしません。
+サーバにLLMを組み込まず、構造抽出と修正リトライは呼び出し元の責務とします。サーバは決定的な語彙抽出、必須配列、原子性制約を検証し、構造エラーでは常に全体を未保存にします。
 
-既存の原文保存処理を共用し、構造部分にはsavepointを置きます。通常の構造エラーでは外側のトランザクションを破棄し、最終失敗ではsavepointまで戻して原文だけをコミットします。DB障害とキャンセルを入力エラーに変換しません。新APIで追加するEventも構造部分に含めます。
+検証と語彙抽出をトランザクション前に行い、本文をSQLパラメータへ渡しません。構造エラーではトランザクション全体を破棄します。DB障害とキャンセルは入力エラーに変換しません。
 
-原文は専用`statements`テーブルへ保存し、本文をEntity名にしません。既存のRelation・Source・Event・Tag参照を維持する内部`StatementRef`だけが同一IDを持ち、通常のEntity検索から除外されます。既存`Statement` Entityは初期化時に本文を移して参照へ変換します。
+本文を持たない`knowledge_inputs`と、順序・offsetを持たない`input_terms`を使用します。`Statement`、`StatementRef`、`statements.text`は存在しません。
 
-出典参照はsources.source_statement_idに格納し、Claim検索でJOINして返します。Source IDとEntity IDは区別します。重複判定はStatement・Relation・極性・strength・有効期間で行い、異なる主張を一括で上書きしません。既存Statementに対する構造追加を許可します。
+出典参照は`sources.source_input_id`に格納し、Claim検索でJOINして返します。Source IDとEntity IDは区別します。
 
 同値性はrecursive CTEのUNIONで現在有効な辺の閉包を計算し、自己を起点に含めます。撤回時の削除伝播や推論Claimの出典問題を避けるため、閉包の物理保存は行いません。明示的な自己同値Claimを受け付けるため、symmetric_relationsのCHECKを `a<=b` に移行し、自己関係をequalsに限定する検証を置きます。
 

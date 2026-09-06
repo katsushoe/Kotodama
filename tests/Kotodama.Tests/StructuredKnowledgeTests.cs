@@ -27,7 +27,7 @@ public sealed class StructuredKnowledgeTests : IAsyncLifetime
         [new("a", "A"), new("b", "B")], [new("a", "b", "similar_to", Confidence: .9, Strength: .7)]);
 
     [Fact]
-    public async Task Remember_WhenStructured_PreservesOriginalAndLinksEveryClaim()
+    public async Task Remember_WhenStructured_PersistsTermsWithoutOriginalAndLinksEveryClaim()
     {
         var input = Example("  A resembles B  ") with { Source = new("document", Uri: "urn:test:document", Reliability: .8) };
         var result = await _store.RememberStructuredKnowledgeAsync(input);
@@ -39,8 +39,9 @@ public sealed class StructuredKnowledgeTests : IAsyncLifetime
         result.EntityIds["a"].Should().Be(claim.SubjectId);
         claim.Confidence.Should().Be(.9);
         claim.Strength.Should().Be(.7);
-        claim.SourceStatementId.Should().Be(result.StatementId);
-        (await _store.GetStatementAsync(result.StatementId))!.Text.Should().Be(input.Statement);
+        claim.SourceInputId.Should().Be(result.InputId);
+        var savedInput = await _store.GetKnowledgeInputAsync(result.InputId);
+        savedInput!.Terms.Select(x => x.CanonicalName).Should().BeEquivalentTo(["A", "B", "resembles"]);
         await using var db = new SqliteConnection($"Data Source={_path}");
         await db.OpenAsync();
         await using var command = db.CreateCommand();
@@ -50,28 +51,18 @@ public sealed class StructuredKnowledgeTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Remember_WhenRetried_ReconfirmsWithoutDuplicatesAndPreservesConflict()
+    public async Task Remember_WhenRepeated_PreservesIndependentSourcesAndConflict()
     {
         var first = await _store.RememberStructuredKnowledgeAsync(Example());
         _clock.UtcNow += TimeSpan.FromDays(2);
         var second = await _store.RememberStructuredKnowledgeAsync(Example());
-        second.Status.Should().Be("already_stored");
-        second.ClaimIds.Should().Equal(first.ClaimIds);
+        second.Status.Should().Be("stored");
+        second.InputId.Should().NotBe(first.InputId);
+        second.ClaimIds.Should().NotEqual(first.ClaimIds);
         second.CreatedEntities.Should().Be(0);
-        (await _store.QueryClaimsAsync(relationType: "similar_to"))[0].LastConfirmedAt.Should().Be(_clock.UtcNow);
+        (await _store.QueryClaimsAsync(relationType: "similar_to")).Should().HaveCount(2);
         await _store.RememberStructuredKnowledgeAsync(Example() with { Relations = [new("a", "b", "similar_to", Polarity.Negative, Strength: .7)] });
-        (await _store.QueryClaimsAsync(relationType: "similar_to")).Select(x => x.Polarity).Should().BeEquivalentTo([Polarity.Positive, Polarity.Negative]);
-    }
-
-    [Fact]
-    public async Task Remember_WhenLegacyStatementIsEnriched_AddsGraphOnce()
-    {
-        var old = await _store.RememberKnowledgeAsync(new("A resembles B"));
-        var updated = await _store.RememberStructuredKnowledgeAsync(Example());
-        updated.StatementId.Should().Be(old.StatementId);
-        updated.Status.Should().Be("stored");
-        updated.ClaimIds.Should().HaveCount(1);
-        (await _store.QueryClaimsAsync(relationType: "remembers")).Should().HaveCount(1);
+        (await _store.QueryClaimsAsync(relationType: "similar_to")).Select(x => x.Polarity).Should().Contain([Polarity.Positive, Polarity.Negative]);
     }
 
     [Fact]
@@ -83,28 +74,28 @@ public sealed class StructuredKnowledgeTests : IAsyncLifetime
         (await _store.SearchEntitiesAsync("")).Should().BeEmpty();
         var skipped = await _store.RememberStructuredKnowledgeAsync(new("Fact", [], [], Reason: "No concepts apply"));
         skipped.Ok.Should().BeTrue();
-        skipped.StructureStatus.Should().Be("skipped");
+        skipped.StructureStatus.Should().Be("terms_only");
     }
 
     [Fact]
-    public async Task Remember_WhenInvalidRelation_RollsBackWholeRequestUntilFinalRetry()
+    public async Task Remember_WhenInvalidRelation_RollsBackWholeRequestIncludingFinalRetry()
     {
         var input = Example() with { Relations = [new("a", "b", "undefined")], RetryCount = 2 };
         var rejected = await _store.RememberStructuredKnowledgeAsync(input);
         rejected.Status.Should().Be("rejected");
         (await _store.SearchEntitiesAsync("")).Should().BeEmpty();
-        var fallback = await _store.RememberStructuredKnowledgeAsync(input with
+        var final = await _store.RememberStructuredKnowledgeAsync(input with
         {
             RetryCount = 3,
             Event = new("actor", "visit", "place", _clock.UtcNow, _clock.UtcNow.AddHours(1))
         });
-        fallback.Ok.Should().BeTrue();
-        fallback.StructureStatus.Should().Be("fallback");
-        fallback.Reason.Should().Contain("undefined");
-        fallback.EventId.Should().BeNull();
-        fallback.EntityIds.Should().BeEmpty();
-        (await _store.SearchEntitiesAsync("")).Should().ContainSingle(x => x.ClassName == "KnowledgeSubject");
-        (await _store.GetStatementAsync(fallback.StatementId))!.Text.Should().Be(input.Statement);
+        final.Ok.Should().BeFalse();
+        final.StructureStatus.Should().Be("rejected");
+        final.Reason.Should().Contain("undefined");
+        final.EventId.Should().BeNull();
+        final.EntityIds.Should().BeEmpty();
+        (await _store.SearchEntitiesAsync("")).Should().BeEmpty();
+        (await _store.GetKnowledgeInputAsync(final.InputId)).Should().BeNull();
         (await _store.QueryEventsAsync()).Should().BeEmpty();
     }
 
@@ -274,7 +265,7 @@ public sealed class StructuredKnowledgeTests : IAsyncLifetime
         var reopened = new KnowledgeStore(_path, _clock);
         await reopened.InitializeAsync();
         var claims = await reopened.QueryClaimsAsync(relationType: "similar_to");
-        claims.Should().ContainSingle(x => x.SourceStatementId == result.StatementId);
+        claims.Should().ContainSingle(x => x.SourceInputId == result.InputId);
         (await reopened.SearchEntitiesAsync("A")).Select(x => x.CanonicalName).Should().Contain("B");
     }
 
@@ -282,35 +273,6 @@ public sealed class StructuredKnowledgeTests : IAsyncLifetime
     {
         public DateTimeOffset UtcNow { get; set; } = DateTimeOffset.Parse("2026-09-04T00:00:00Z");
         public override DateTimeOffset GetUtcNow() => UtcNow;
-    }
-
-    [Fact]
-    public async Task Initialize_WhenLegacySchemaExists_MigratesWithoutLosingData()
-    {
-        var remembered = await _store.RememberKnowledgeAsync(new("Legacy statement"));
-        var a = await _store.CreateEntityAsync(new("A"));
-        var b = await _store.CreateEntityAsync(new("B"));
-        await _store.ProposeClaimAsync(new(a.Id, b.Id, "similar_to"));
-        await using (var db = new SqliteConnection($"Data Source={_path}"))
-        {
-            await db.OpenAsync();
-            await using var command = db.CreateCommand();
-            command.CommandText = """
-                DROP INDEX idx_sources_statement;
-                ALTER TABLE sources DROP COLUMN source_statement_id;
-                CREATE TABLE old_symmetric(relation_id INTEGER PRIMARY KEY REFERENCES relations(id),entity_a_id INTEGER NOT NULL REFERENCES entities(id),entity_b_id INTEGER NOT NULL REFERENCES entities(id),CHECK(entity_a_id<entity_b_id),UNIQUE(entity_a_id,entity_b_id,relation_id));
-                INSERT INTO old_symmetric SELECT * FROM symmetric_relations;
-                DROP TABLE symmetric_relations;
-                ALTER TABLE old_symmetric RENAME TO symmetric_relations;
-                """;
-            await command.ExecuteNonQueryAsync();
-        }
-        await _store.InitializeAsync();
-        (await _store.GetStatementAsync(remembered.StatementId))!.Text.Should().Be("Legacy statement");
-        (await _store.QueryClaimsAsync(relationType: "similar_to")).Should().HaveCount(1);
-        (await _store.ProposeClaimAsync(new(a.Id, a.Id, "equals"))).Ok.Should().BeTrue();
-        var structured = await _store.RememberStructuredKnowledgeAsync(Example());
-        (await _store.QueryClaimsAsync(relationType: "similar_to")).Should().Contain(x => x.SourceStatementId == structured.StatementId);
     }
 
     [Fact]
@@ -337,12 +299,12 @@ public sealed class StructuredKnowledgeTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Remember_WhenConcurrent_StoresOneGraph()
+    public async Task Remember_WhenConcurrent_PreservesIndependentInputs()
     {
         var results = await Task.WhenAll(Enumerable.Range(0, 4).Select(_ => Task.Run(() => _store.RememberStructuredKnowledgeAsync(Example()))));
-        results.Select(x => x.StatementId).Distinct().Should().HaveCount(1);
-        results.SelectMany(x => x.ClaimIds).Distinct().Should().HaveCount(1);
-        (await _store.QueryClaimsAsync(relationType: "similar_to")).Should().HaveCount(1);
+        results.Select(x => x.InputId).Distinct().Should().HaveCount(4);
+        results.SelectMany(x => x.ClaimIds).Distinct().Should().HaveCount(4);
+        (await _store.QueryClaimsAsync(relationType: "similar_to")).Should().HaveCount(4);
     }
 
     [Fact]

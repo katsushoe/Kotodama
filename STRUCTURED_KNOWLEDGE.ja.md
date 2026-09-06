@@ -11,7 +11,7 @@ MCP引数は `input` オブジェクトです。`statement`、`entities`、`rela
 - `tags`: 任意のタグ名配列。保存文と当該保存のClaimへ原子的に付与します。正規化、継承、検索・管理契約は[知識タグ仕様](KNOWLEDGE_TAGS.ja.md)を参照してください。
 - 概念数の目安は2件以上、関係は1件以上です。これは件数の強制ではなく、空配列時の再入力案内です。上限は概念100件・関係200件です。
 - どちらかが空なら、意図的ゼロ件の `reason` が必要です。非空の配列はその場合も保存対象です。両配列は `reason` があっても省略不可です。
-- `retryCount` は初回0、再入力1～3です。呼び出し元が構造を修正して最大3回まで再入力します。3回目も構造エラーなら原文Statementとremembers Claimだけを保存します。概念・抽出関係・今回のEventは保存しません。
+- `retryCount` は初回0、再入力1～3です。呼び出し元が構造を修正して最大3回まで再入力します。3回目も構造エラーなら全体を未保存で返します。
 - statement、namespace、確信度・日時、配列の欠落、retryCountの範囲など基本契約の違反と、DB障害・キャンセルはフォールバック対象外です。構造エラーは未知RelationType、参照key不備、上限超過、関係制約違反などです。
 - 必須入力の欠落はMCP引数バインド時のプロトコルエラーになる場合があります。構造検証の `ok:false` と区別し、入力契約を修正します。
 
@@ -33,22 +33,22 @@ MCP引数は `input` オブジェクトです。`statement`、`entities`、`rela
 
 ## 保存・出力
 
-原文、概念、抽出関係、指定Eventは全体として成功するか、全体が保存されないかのどちらかです。最終再入力の縮退だけは原文保存が成功します。成功した `reason` による省略はエラーではありません。
+語彙、概念、抽出関係、指定Eventは全体として成功するか、全体が保存されないかのどちらかです。原文はトランザクションへ渡さず、メモリ上の語彙抽出後に破棄します。
 
 返却値は従来の `ok`、`status`、`subjectId`、`statementId`、`claimId`、`createdEntities`、`createdRelationType`、`eventId` に加え、以下を含みます。
 
-- `structureStatus`: `structured`（構造あり）、`skipped`（理由付きゼロ件）、`fallback`（修正上限後の原文保存）、`rejected`（未保存）。内部の旧保存APIのみ `legacy`。
+- `structureStatus`: `structured`（Claimあり）、`terms_only`（語彙のみ）、`rejected`（未保存）。
 - `reason`: 省略理由、検証エラーまたは縮退理由。`ok:false/status:rejected` は入力を修正すべき結果です。返却IDは0であり、永続IDとして使えません。
 - `entityIds`: 要求内keyと永続Entity IDの対応。
-- `claimIds`: 抽出Claim ID。再確認したClaimも含みます。原文へのremembers Claimは従来の `claimId` です。
+- `claimIds`: 抽出Claim ID。再確認したClaimも含みます。
 
-既存原文に構造を後から追加できます。同じ原文・関係・極性・strength・有効期間の非撤回抽出Claimは再確認し、重複させません。異なる出所の原文や矛盾するClaimは共存します。`status:stored` は新規原文・概念・抽出Claimが保存された場合、`already_stored` はそれらの追加がなかった場合です。既存Eventの扱いは従来どおりです。
+入力ごとに本文を持たない`knowledge_inputs`を作成します。矛盾するClaimは上書きせず共存します。
 
-原文は`statements`へ保存し、本文をEntityの`canonicalName`へ格納しません。`statementId`は保存原文のIDであり、`get_statement`で取得できます。既存参照との互換性のため内部`StatementRef`が同じIDを保持しますが、通常のEntity検索から除外されます。
+`statements`と`StatementRef`はProtocol 2で廃止しました。`knowledge_inputs`は本文を持たず、`input_terms(input_id, term_entity_id, occurrence_count)`だけが抽出語彙を保持します。`get_knowledge_input`で語彙を取得できます。
 
 旧版で説明句として登録されたEntityは、起動時に同じIDのStatementへ移行し、既存の参照を保持します。Event、actor、objectとして使用中のEntityは自動移行の対象外です。
 
-抽出Claimの `sourceId` はSource IDです。Entity IDとの混用はしません。Source経由の `sourceStatementId` を `query_claims` 等のClaim返却値に含め、抽出元Statementを参照できます。出典URI・信頼度など元のSource属性は保持します。
+抽出Claimの `sourceId` はSource IDです。Entity IDとの混用はしません。Source経由の `sourceInputId` を `query_claims` 等のClaim返却値に含め、本文を持たない入力単位を参照できます。Source URIはhttp/httpsの場合originへ正規化し、自由文Metadataは拒否します。
 
 ## 語彙と意味論
 
@@ -81,4 +81,4 @@ metadataは文字列として渡す固定JSON `{"threshold":0.5}` です。thres
 
 ## 既存データ
 
-既存remembersログの概念・関係は自動抽出しません。初期化時に`className:Statement`の本文を`statements`へ移し、元の行を本文を含まない`StatementRef`へ変換します。原文を構造付きで再入力した場合のみ概念と関係を補完します。既存の予約語彙と規則が衝突する場合は初期化エラーとします。
+旧`statements`は初期化時にメモリ上で語彙へ分解し、参照を`source_input_id`へ移行した後に再構築で削除します。移行後はWALを切り詰め、`VACUUM`で解放領域を再生成します。既存バックアップの削除は別の明示承諾が必要です。

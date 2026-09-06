@@ -1,5 +1,7 @@
 # 文書一覧
 
+- [SecurityとPrivacy](SECURITY.ja.md)
+
 | 文書 | 内容 |
 |---|---|
 | [README.ja.md](README.ja.md) | 製品概要、起動方法、現在の制約 |

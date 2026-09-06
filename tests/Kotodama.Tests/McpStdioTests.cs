@@ -88,9 +88,9 @@ public sealed class McpStdioTests : IAsyncLifetime
         var tools = await _client.ListToolsAsync(cancellationToken: CancellationToken.None);
 
         tools.Select(x => x.Name).Should().BeEquivalentTo(
-            "get_version", "get_entity", "get_statement", "search_entities", "propose_claim", "retract_claim", "reactivate_claim", "delete_claim",
+            "get_version", "get_entity", "get_knowledge_input", "get_statement", "search_entities", "propose_claim", "retract_claim", "reactivate_claim", "delete_claim",
             "query_claims", "query_relations", "get_neighbors", "get_knowledge_context",
-            "create_tag", "list_tags", "rename_tag", "add_tag_alias", "merge_tags", "set_knowledge_tags", "query_tagged_statements", "query_tagged_claims",
+            "create_tag", "list_tags", "rename_tag", "add_tag_alias", "merge_tags", "set_knowledge_tags", "query_tagged_inputs", "query_tagged_statements", "query_tagged_claims",
             "run_dream", "create_entity", "create_relation_type", "update_relation_type", "delete_relation_type", "create_event", "remember_knowledge", "query_events", "get_equivalent_entities", "merge_similarity_groups");
     }
 
@@ -100,7 +100,7 @@ public sealed class McpStdioTests : IAsyncLifetime
         var result = await _client.CallToolAsync("get_version", cancellationToken: CancellationToken.None);
 
         result.IsError.Should().NotBeTrue();
-        GetResponseJson(result).Should().Contain("Kotodama").And.Contain("0.15.1");
+        GetResponseJson(result).Should().Contain("Kotodama").And.Contain("0.16.2").And.Contain("protocolVersion");
     }
 
     [Fact]
@@ -126,10 +126,10 @@ public sealed class McpStdioTests : IAsyncLifetime
         result.IsError.Should().NotBeTrue();
         using var stored = JsonDocument.Parse(GetResponseJson(result));
         stored.RootElement.GetProperty("structureStatus").GetString().Should().Be("structured");
-        var statementId = stored.RootElement.GetProperty("statementId").GetInt64();
+        var inputId = stored.RootElement.GetProperty("inputId").GetInt64();
         var claims = await CallAsync("query_claims", new Dictionary<string, object?> { ["relationType"] = "similar_to" });
         using var queried = JsonDocument.Parse(GetResponseJson(claims));
-        queried.RootElement.EnumerateArray().Should().Contain(x => x.GetProperty("sourceStatementId").GetInt64() == statementId);
+        queried.RootElement.EnumerateArray().Should().Contain(x => x.GetProperty("sourceInputId").GetInt64() == inputId);
     }
 
     [Fact]
@@ -151,25 +151,26 @@ public sealed class McpStdioTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task RememberKnowledge_ThroughStdio_PersistsNaturalTextInOneCall()
+    public async Task RememberKnowledge_ThroughStdio_PersistsOnlyUnorderedTerms()
     {
         var text = "自然文のバックアップ予定 " + Guid.NewGuid().ToString("N");
 
         var remembered = await CallAsync("remember_knowledge", new Dictionary<string, object?>
         {
-            ["input"] = new { statement = text, entities = Array.Empty<object>(), relations = Array.Empty<object>(), reason = "Statement-only test" },
+            ["input"] = new { statement = text, entities = Array.Empty<object>(), relations = Array.Empty<object>(), reason = "Term-only input" },
         });
         using var rememberedDocument = JsonDocument.Parse(GetResponseJson(remembered));
-        var statementId = rememberedDocument.RootElement.GetProperty("statementId").GetInt64();
-        var statement = await CallAsync("get_statement", new Dictionary<string, object?>
+        var inputId = rememberedDocument.RootElement.GetProperty("inputId").GetInt64();
+        var input = await CallAsync("get_knowledge_input", new Dictionary<string, object?>
         {
-            ["id"] = statementId,
+            ["id"] = inputId,
         });
         var searched = await CallAsync("search_entities", new Dictionary<string, object?> { ["query"] = text });
 
         GetResponseJson(remembered).Should().Contain("stored");
-        using var statementDocument = JsonDocument.Parse(GetResponseJson(statement));
-        statementDocument.RootElement.GetProperty("text").GetString().Should().Be(text);
+        using var inputDocument = JsonDocument.Parse(GetResponseJson(input));
+        inputDocument.RootElement.TryGetProperty("text", out _).Should().BeFalse();
+        inputDocument.RootElement.GetProperty("terms").GetArrayLength().Should().BeGreaterThan(0);
         using var searchDocument = JsonDocument.Parse(GetResponseJson(searched));
         searchDocument.RootElement.GetArrayLength().Should().Be(0);
     }

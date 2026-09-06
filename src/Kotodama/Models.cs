@@ -32,7 +32,7 @@ public sealed record RelationTypeInput(string CanonicalName, string Category, Re
 public sealed record RelationTypeUpdate(string CanonicalName, string Category, bool AllowStrength = false, string? InverseName = null, FreshnessPolicy FreshnessPolicy = FreshnessPolicy.Permanent, long? RefreshAfterSeconds = null, string? Description = null);
 
 /// <summary>Source の登録要求です。</summary>
-public sealed record SourceInput(string SourceType, string? Uri = null, string? ExternalId = null, string? Title = null, long? AuthorEntityId = null, double? Reliability = null, string? Metadata = null, long? SourceStatementId = null);
+public sealed record SourceInput(string SourceType, string? Uri = null, string? ExternalId = null, string? Title = null, long? AuthorEntityId = null, double? Reliability = null, string? Metadata = null, long? SourceInputId = null);
 
 /// <summary>Knowledge Candidate です。</summary>
 public sealed record ClaimCandidate(long SubjectId, long ObjectId, string RelationType, Polarity Polarity = Polarity.Positive, double Confidence = 1, double? AttributionConfidence = null, double? Strength = null, long? KnowledgeSubjectId = null, SourceInput? Source = null, string AssertionType = "user_claim", DateTimeOffset? ObservedAt = null, DateTimeOffset? ValidFrom = null, DateTimeOffset? ValidTo = null, DateTimeOffset? LastConfirmedAt = null);
@@ -44,11 +44,14 @@ public sealed record EntityRecord(long Id, string CanonicalName, string ClassNam
     public EntitySearchMatch? Match { get; init; }
 }
 
-/// <summary>原文をEntityから分離して保持するStatementです。</summary>
-public sealed record StatementRecord(long Id, string Text, string Namespace, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);
+/// <summary>本文を持たない知識入力単位です。</summary>
+public sealed record KnowledgeInputRecord(long Id, string Namespace, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt, IReadOnlyList<InputTermRecord> Terms);
+
+/// <summary>知識入力に含まれる順序を持たない語彙と出現回数です。</summary>
+public sealed record InputTermRecord(long EntityId, string CanonicalName, int OccurrenceCount);
 
 /// <summary>Relation と Claim を結合した検索結果です。</summary>
-public sealed record ClaimRecord(long ClaimId, long RelationId, string RelationType, RelationKind Kind, long SubjectId, long ObjectId, Polarity Polarity, double Confidence, double? AttributionConfidence, double? Strength, long? KnowledgeSubjectId, long? SourceId, string AssertionType, DateTimeOffset ObservedAt, DateTimeOffset? ValidFrom, DateTimeOffset? ValidTo, DateTimeOffset? LastConfirmedAt, ClaimStatus Status, long? SourceStatementId = null);
+public sealed record ClaimRecord(long ClaimId, long RelationId, string RelationType, RelationKind Kind, long SubjectId, long ObjectId, Polarity Polarity, double Confidence, double? AttributionConfidence, double? Strength, long? KnowledgeSubjectId, long? SourceId, string AssertionType, DateTimeOffset ObservedAt, DateTimeOffset? ValidFrom, DateTimeOffset? ValidTo, DateTimeOffset? LastConfirmedAt, ClaimStatus Status, long? SourceInputId = null);
 
 /// <summary>操作結果です。</summary>
 public sealed record OperationResult(bool Ok, string Status, string? Reason = null, long? Id = null);
@@ -79,14 +82,14 @@ public sealed record RememberKnowledgeResult(
     bool Ok,
     string Status,
     long SubjectId,
-    long StatementId,
-    long ClaimId,
+    long InputId,
+    long? ClaimId,
     int CreatedEntities,
     bool CreatedRelationType,
     long? EventId = null)
 {
     /// <summary>structured / skipped / fallback / rejected / legacyです。</summary>
-    public string StructureStatus { get; init; } = "legacy";
+    public string StructureStatus { get; init; } = "structured";
     /// <summary>検証エラー、明示的な省略理由、縮退理由です。</summary>
     public string? Reason { get; init; }
     /// <summary>要求内keyから永続Entity IDへの対応です。</summary>
@@ -103,10 +106,10 @@ public sealed record DreamResult(int Examined, int MarkedStale, DateTimeOffset E
 }
 
 /// <summary>Event の登録要求です。</summary>
-public sealed record EventInput(string CanonicalName, long? ActorId, DateTimeOffset OccurredAt, string Action, long? ObjectId = null, string? ObjectValue = null, string Namespace = "global", string? Metadata = null, DateTimeOffset? EndsAt = null, long? SourceStatementId = null);
+public sealed record EventInput(string CanonicalName, long? ActorId, DateTimeOffset OccurredAt, string Action, long? ObjectId = null, string? ObjectValue = null, string Namespace = "global", string? Metadata = null, DateTimeOffset? EndsAt = null, long? SourceInputId = null);
 
 /// <summary>Event の登録結果です。</summary>
-public sealed record EventRecord(long EntityId, string CanonicalName, long? ActorId, DateTimeOffset OccurredAt, string Action, long? ObjectId, string? ObjectValue, DateTimeOffset? EndsAt = null, long? SourceStatementId = null);
+public sealed record EventRecord(long EntityId, string CanonicalName, long? ActorId, DateTimeOffset OccurredAt, string Action, long? ObjectId, string? ObjectValue, DateTimeOffset? EndsAt = null, long? SourceInputId = null);
 
 /// <summary>構造化Eventの検索結果です。</summary>
-public sealed record EventSearchRecord(long EntityId, string CanonicalName, long? ActorId, string? Actor, DateTimeOffset StartsAt, DateTimeOffset? EndsAt, string Action, long? PlaceId, string? Place, long? SourceStatementId, string? SourceStatement);
+public sealed record EventSearchRecord(long EntityId, string CanonicalName, long? ActorId, string? Actor, DateTimeOffset StartsAt, DateTimeOffset? EndsAt, string Action, long? PlaceId, string? Place, long? SourceInputId);

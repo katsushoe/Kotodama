@@ -18,9 +18,9 @@
 
 ## 保存と継承
 
-`remember_knowledge.input.tags`は任意の名前配列です。省略・空配列は従来どおりです。最大100件、正規化後に重複排除します。タグを再利用または作成し、Statementとremembers Claim、当該要求の抽出Claimへ原子的に付与します。一般概念EntityやEventには付与しません。
+`remember_knowledge.input.tags`は任意の名前配列です。最大100件、正規化後に重複排除します。タグを再利用または作成し、本文を持たないKnowledgeInputと当該要求の抽出Claimへ原子的に付与します。一般概念EntityやEventには付与しません。
 
-由来はStatementで`remember`、保存時のClaimで`inherited`（sourceStatementId付き）、後付けで`manual`です。付与履歴を時系列監査する機能ではありません。構造エラーによるrejectedはタグも保存せず、最終fallbackではStatementとremembers Claimだけに付与します。既存Statementの再保存は追加方式で、既存タグを消しません。
+由来はKnowledgeInputで`remember`、保存時のClaimで`inherited`（sourceInputId付き）、後付けで`manual`です。構造エラーによるrejectedではタグを含む全データを保存しません。
 
 ## Tool契約
 
@@ -34,10 +34,10 @@
 | add_tag_alias | tagId, alias, entityNamespace="global" | TagRecord |
 | merge_tags | sourceTagId, targetTagId, entityNamespace="global" | 統合先TagRecord |
 | set_knowledge_tags | input | matchedCount, changedCount, dryRun |
-| query_tagged_statements | input | statementとtags由来一覧 |
+| query_tagged_inputs | input | 本文を持たないinput、terms、tags由来一覧 |
 | query_tagged_claims | input | claimとtags由来一覧 |
 
-TagRecordはid, name, namespace, aliases, mergedIntoIdです。検索のtagsはtagId, name, origin, sourceStatementIdを返します。
+TagRecordはid, name, namespace, aliases, mergedIntoIdです。検索のtagsはtagId, name, origin, sourceInputIdを返します。
 
 検索input: `tags`（名前）、`tagIds`（ID）の少なくとも一方、`tagMatch: "any" | "all"`（既定any）、`namespace`（既定global）、`limit`（1～200、既定50）、`afterId`（既定0）。名前とIDは同じ候補集合へ合成し、別名・統合先の解決後に重複排除します。unknown名はanyで無視、allで全体を不一致にします。空条件はエラーです。ID昇順のカーソルページングです。
 
@@ -54,7 +54,7 @@ set_knowledge_tags.input: `targetKind: "statement" | "claim"`, `tagIds`（1～10
 ## 利用例
 
 ```json
-{"input":{"statement":"主人公は北の城で育った。","entities":[],"relations":[],"reason":"原文のみ保存","tags":["ミルラッド年代記"]}}
+{"input":{"statement":"主人公は北の城で育った。","entities":[{"key":"person","canonicalName":"主人公"},{"key":"place","canonicalName":"北の城"}],"relations":[{"subject":"person","object":"place","relationType":"member_of"}],"tags":["ミルラッド年代記"]}}
 ```
 
 ```json

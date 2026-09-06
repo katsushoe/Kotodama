@@ -33,7 +33,7 @@ DBへの新規記録が成功した場合、AIは利用者へ`Kotodamaに記録�
 
 ## Kotodamaのデータモデル
 
-`remember_knowledge`は`input.statement/entities/relations`を必須とし、原文をEntityから分離して保存します。各Entityは固有名・名詞・短い名詞句・識別子へ分解し、文章は拒否します。旧`text`のみの呼び出しは更新が必要です。詳細は[構造化拡張の契約](STRUCTURED_KNOWLEDGE.ja.md)を参照してください。
+`remember_knowledge`は`input.statement/entities/relations`を必須とします。`statement`はメモリ上で語彙抽出にだけ使い、DB・ログ・応答へ保存しません。DBには本文を持たない`knowledge_inputs`、順序やoffsetを持たない`input_terms`、原子的なEntity・Relation・Claimだけを保存します。旧`get_statement`と`query_tagged_statements`はProtocol 2非互換エラーを返します。詳細は[構造化拡張の契約](STRUCTURED_KNOWLEDGE.ja.md)を参照してください。
 
 ```text
 Entity --< 有向／対称 Relation >-- Entity
@@ -61,17 +61,17 @@ Claimは明示的な撤回で`active -> retracted`、`dream`で`active -> stale`
 - 情報が存在しない場合はfalseと断定せず、空の検索結果をunknownとして扱います。
 - Claimの有効期間、観測日時、最終確認日時、鮮度状態を保持します。
 - dreamは`remembers` Claimのconfidenceを段階的に減衰し、基準未満で`active`から`stale`へ変更します。
-- stdioとStreamable HTTPによるMCPサーバーとして30個のToolを提供します。
-- 保存文と派生Claimへのタグ付与、AND/OR検索、後付け・解除、改名・別名・統合に対応します。[知識タグ仕様](KNOWLEDGE_TAGS.ja.md)を参照してください。
+- stdioとStreamable HTTPによるMCPサーバーとしてProtocol 2のToolを提供します。
+- 本文を持たない入力単位と派生Claimへのタグ付与、AND/OR検索、後付け・解除、改名・別名・統合に対応します。[知識タグ仕様](KNOWLEDGE_TAGS.ja.md)を参照してください。
 
 ## MSIインストーラーを使う場合
 
-[Kotodama-0.11.5-x64.msi](https://github.com/katsushoe/Kotodama/releases/download/v0.11.5/Kotodama-0.11.5-x64.msi)をダウンロードし、SHA-256を照合してから管理者権限で実行します。
+[Kotodama-0.16.2-x64.msi](https://github.com/katsushoe/Kotodama/releases/download/v0.16.2/Kotodama-0.16.2-x64.msi)をダウンロードし、SHA-256を照合してから管理者権限で実行します。
 
 ```powershell
-Get-FileHash .\Kotodama-0.11.5-x64.msi -Algorithm SHA256
+Get-FileHash .\Kotodama-0.16.2-x64.msi -Algorithm SHA256
 Start-Process msiexec.exe -Verb RunAs -Wait `
-  -ArgumentList '/i "Kotodama-0.11.5-x64.msi" /norestart'
+  -ArgumentList '/i "Kotodama-0.16.2-x64.msi" /norestart'
 ```
 
 インストール先は`C:\Kotodama`です。Windowsのインストール済みアプリへ登録され、UpgradeとUninstallに対応します。
@@ -84,12 +84,12 @@ DXTはMCP Tool、Server Instructions、`use_kotodama` Promptを提供します�
 
 ## ZIP配布を使う場合
 
-[Kotodama-0.11.5-win-x64.zip](https://github.com/katsushoe/Kotodama/releases/download/v0.11.5/Kotodama-0.11.5-win-x64.zip)をダウンロードし、書き込み可能な任意の場所へ展開します。
+[Kotodama-0.16.2-win-x64.zip](https://github.com/katsushoe/Kotodama/releases/download/v0.16.2/Kotodama-0.16.2-win-x64.zip)をダウンロードし、書き込み可能な任意の場所へ展開します。
 
 ```powershell
-Get-FileHash .\Kotodama-0.11.5-win-x64.zip -Algorithm SHA256
-Expand-Archive .\Kotodama-0.11.5-win-x64.zip -DestinationPath C:\Tools
-& C:\Tools\Kotodama\bin\Kotodama.exe
+Get-FileHash .\Kotodama-0.16.2-win-x64.zip -Algorithm SHA256
+Expand-Archive .\Kotodama-0.16.2-win-x64.zip -DestinationPath C:\Tools\Kotodama
+& C:\Tools\Kotodama\Kotodama.exe
 ```
 
 ZIPは自己完結型で、別途.NET Runtimeを必要としません。Windowsへの製品登録、`PATH`変更、自動Upgradeは行いません。更新時は展開先の`data`ディレクトリを保持してください。

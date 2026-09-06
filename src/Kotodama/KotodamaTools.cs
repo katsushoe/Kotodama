@@ -23,11 +23,18 @@ public sealed class KotodamaTools(KnowledgeStore store)
     [McpServerTool(Name = "merge_tags"), Description("明示された同一namespaceのタグを統合します。関連・別名を移し、旧IDは統合先へ解決します。")]
     public Task<TagRecord> MergeTags(long sourceTagId, long targetTagId, string entityNamespace = "global", CancellationToken cancellationToken = default) => ValidateToolAsync(() => store.MergeTagsAsync(sourceTagId, targetTagId, entityNamespace, cancellationToken));
 
-    [McpServerTool(Name = "set_knowledge_tags"), Description("statement/claimへタグIDを付与・解除します。targetIdsまたはknowledgeSubjectIdを指定。dryRun既定true、実行はexpectedCount必須で件数相違時に拒否します。後付け・解除は指定対象のみに適用します。")]
+    [McpServerTool(Name = "set_knowledge_tags"), Description("input/claimへタグIDを付与・解除します。targetIdsまたはknowledgeSubjectIdを指定。dryRun既定true、実行はexpectedCount必須で件数相違時に拒否します。後付け・解除は指定対象のみに適用します。")]
     public Task<TagUpdateResult> SetKnowledgeTags(SetKnowledgeTagsInput input, CancellationToken cancellationToken) => ValidateToolAsync(() => store.SetKnowledgeTagsAsync(input, cancellationToken));
 
-    [McpServerTool(Name = "query_tagged_statements", ReadOnly = true), Description("保存文をtags/tagIdsの完全一致で検索します。tagMatch=any/all、namespace、afterId、limitを指定し、付与由来を返します。")]
-    public Task<IReadOnlyList<TaggedStatement>> QueryTaggedStatements(TagQueryInput input, CancellationToken cancellationToken) => ValidateToolAsync(() => store.QueryTaggedStatementsAsync(input, cancellationToken));
+    [McpServerTool(Name = "query_tagged_inputs", ReadOnly = true), Description("本文を持たない知識入力をtags/tagIdsの完全一致で検索します。tagMatch=any/all、namespace、afterId、limitを指定し、語彙と付与由来を返します。")]
+    public Task<IReadOnlyList<TaggedKnowledgeInput>> QueryTaggedInputs(TagQueryInput input, CancellationToken cancellationToken) => ValidateToolAsync(() => store.QueryTaggedInputsAsync(input, cancellationToken));
+
+    [McpServerTool(Name = "query_tagged_statements", ReadOnly = true), Description("Protocol 1互換エラーを返します。query_tagged_inputsへ移行してください。")]
+    public static OperationResult QueryTaggedStatements(TagQueryInput input)
+    {
+        ArgumentNullException.ThrowIfNull(input);
+        return new(false, "protocol_incompatible", "query_tagged_statements was removed in protocol 2; use query_tagged_inputs.");
+    }
 
     [McpServerTool(Name = "query_tagged_claims", ReadOnly = true), Description("Claimをtags/tagIdsの完全一致で検索します。tagMatch=any/all、namespace、状態、有効時点、afterId、limitを指定し、付与由来を返します。")]
     public Task<IReadOnlyList<TaggedClaim>> QueryTaggedClaims(TagQueryInput input, CancellationToken cancellationToken) => ValidateToolAsync(() => store.QueryTaggedClaimsAsync(input, cancellationToken));
@@ -46,13 +53,16 @@ public sealed class KotodamaTools(KnowledgeStore store)
     }
 
     [McpServerTool(Name = "get_version"), Description("稼働中のKotodamaバージョンを返します。")]
-    public static object GetVersion() => new { name = "Kotodama", version = "0.15.1" };
+    public static object GetVersion() => new { name = "Kotodama", version = "0.16.2", protocolVersion = 2, schemaVersion = 2 };
 
     [McpServerTool(Name = "get_entity"), Description("IDでEntityを取得します。存在しない場合はnullです。")]
     public Task<EntityRecord?> GetEntity(long id, CancellationToken cancellationToken) => store.GetEntityAsync(id, cancellationToken);
 
-    [McpServerTool(Name = "get_statement", ReadOnly = true), Description("IDで保存原文を取得します。原文はEntityとは別のStatementとして保持されます。存在しない場合はnullです。")]
-    public Task<StatementRecord?> GetStatement(long id, CancellationToken cancellationToken) => store.GetStatementAsync(id, cancellationToken);
+    [McpServerTool(Name = "get_knowledge_input", ReadOnly = true), Description("IDで本文を持たない知識入力と順序を持たない語彙を取得します。存在しない場合はnullです。")]
+    public Task<KnowledgeInputRecord?> GetKnowledgeInput(long id, CancellationToken cancellationToken) => store.GetKnowledgeInputAsync(id, cancellationToken);
+
+    [McpServerTool(Name = "get_statement", ReadOnly = true), Description("Protocol 1互換エラーを返します。get_knowledge_inputへ移行してください。")]
+    public static OperationResult GetStatement(long id) => new(false, "protocol_incompatible", "get_statement was removed in protocol 2; use get_knowledge_input.", id);
 
     [McpServerTool(Name = "search_entities"), Description("名前の部分一致を優先し、同じnamespaceの有効なPositive similar_to/equalsとSimilarityGroup所属を辿った関連候補を合計limit件まで返します。matchは到達理由とClaim経路です。related_pathは類似性の推移を意味しません。includeRelated=falseで名前一致のみです。")]
     public Task<IReadOnlyList<EntityRecord>> SearchEntities(string query, int limit = 50, bool includeRelated = true, CancellationToken cancellationToken = default) => store.SearchEntitiesAsync(query, limit, cancellationToken, includeRelated);
@@ -66,7 +76,7 @@ public sealed class KotodamaTools(KnowledgeStore store)
     [McpServerTool(Name = "propose_claim"), Description("Knowledge Candidateを規則検証し、妥当ならClaimとして保存します。")]
     public Task<OperationResult> ProposeClaim(ClaimCandidate candidate, CancellationToken cancellationToken) => store.ProposeClaimAsync(candidate, cancellationToken);
 
-    [McpServerTool(Name = "remember_knowledge"), Description("input.statementに原文、必須entities/relationsに抽出済み概念・関係を渡します。原文はStatementへ保存され、Entityには保存されません。各Entityは1つの固有名・名詞・短い名詞句・識別子に分解し、文章、Statement/StatementRef class、原文全体をcanonicalNameへ指定できません。entitiesはkey,canonicalName,className,任意entityId/metadata、relationsはsubject/objectキー,relationType,polarity,confidence,任意strengthです。目安は概念2件・関係1件、上限100/200。意図的ゼロ件は空配列とreasonを指定します。構造エラーは最大3回修正しretryCountを増加、3回目も失敗すれば原文だけ保存します。SourceStatementIdで原文へ追跡可能です。")]
+    [McpServerTool(Name = "remember_knowledge"), Description("Protocol 2。input.statementは解析中だけMemoryで扱い、DB、Log、応答へ保存しません。必須entities/relationsに原子的な概念と関係を渡します。語彙はNFKC正規化し、順序とOffsetを持たないinput_termsへ保存します。構造エラーは最大3回修正し、最終失敗も未保存です。結果のinputIdから非本文Metadataと語彙だけを参照できます。秘密情報らしい入力は保存前に拒否します。")]
     public Task<RememberKnowledgeResult> RememberKnowledge(StructuredKnowledgeInput input, CancellationToken cancellationToken) => ValidateToolAsync(() => store.RememberStructuredKnowledgeAsync(input, cancellationToken));
 
     [McpServerTool(Name = "query_events"), Description("構造化Eventをactor、place、期間で検索します。予定の質問では質問文全体の部分一致よりこのToolを優先してください。期間はfrom以上to未満と重なるEventを返します。")]
@@ -96,7 +106,7 @@ public sealed class KotodamaTools(KnowledgeStore store)
     [McpServerTool(Name = "run_dream"), Description("期限超過したClaimをfalseにせずstaleへ変更します。")]
     public Task<DreamResult> RunDream(CancellationToken cancellationToken) => store.RunDreamAsync(cancellationToken);
 
-    [McpServerTool(Name = "create_entity"), Description("原子的なEntityを登録します。canonicalNameは1つの固有名・名詞・短い名詞句・識別子に限定し、文章とStatement/StatementRef classは拒否します。SimilarityGroupはmetadataに固定JSON文字列 {\"threshold\":0.5} を指定します。")]
+    [McpServerTool(Name = "create_entity"), Description("原子的なEntityを登録します。canonicalNameは1つの固有名・名詞・短い名詞句・識別子に限定し、文章とStatement/StatementRef classは拒否します。SimilarityGroupはmetadataに固定JSON文字列 {\"threshold\":0.5} を指定します。原文はEntityやmetadataへ保存できません。")]
     public Task<EntityRecord> CreateEntity(EntityInput input, CancellationToken cancellationToken) => store.CreateEntityAsync(input, cancellationToken);
 
     [McpServerTool(Name = "create_relation_type"), Description("RelationTypeと規則属性を登録します。")]
