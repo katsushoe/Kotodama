@@ -65,6 +65,7 @@ public sealed class KnowledgeStoreTests : IAsyncLifetime
 
     [Theory]
     [InlineData("Kotodamaは文章をEntityへ保存します。", "Entity")]
+    [InlineData("Claude DesktopでのUse Kotodama knowledge選択によるuse_kotodama_text添付", "SoftwareCapability")]
     [InlineData("This canonical name contains far too many separate words to be one atomic entity", "Entity")]
     [InlineData("保存原文", "Statement")]
     [InlineData("statement:1", "StatementRef")]
@@ -72,6 +73,14 @@ public sealed class KnowledgeStoreTests : IAsyncLifetime
     {
         await _store.Invoking(x => x.CreateEntityAsync(new(name, className)))
             .Should().ThrowAsync<ArgumentException>();
+    }
+
+    [Fact]
+    public async Task CreateEntity_WhenNameIsProperNameWithNoParticleClause_IsAccepted()
+    {
+        var entity = await _store.CreateEntityAsync(new("進撃の巨人", "CreativeWork"));
+
+        entity.CanonicalName.Should().Be("進撃の巨人");
     }
 
     [Fact]
@@ -104,6 +113,41 @@ public sealed class KnowledgeStoreTests : IAsyncLifetime
             await using var foreignKeys = verified.CreateCommand();
             foreignKeys.CommandText = "SELECT COUNT(*) FROM pragma_foreign_key_check";
             Convert.ToInt32(await foreignKeys.ExecuteScalarAsync()).Should().Be(0);
+        }
+        finally
+        {
+            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+            if (File.Exists(legacyPath)) File.Delete(legacyPath);
+        }
+    }
+
+    [Fact]
+    public async Task Initialize_WhenDescriptiveEntityExists_MovesTextOutOfEntity()
+    {
+        var legacyPath = Path.Combine(Path.GetTempPath(), $"kotodama-descriptive-{Guid.NewGuid():N}.db");
+        const string description = "Claude DesktopでのUse Kotodama knowledge選択によるuse_kotodama_text添付";
+        try
+        {
+            await using (var connection = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={legacyPath}"))
+            {
+                await connection.OpenAsync();
+                await using var command = connection.CreateCommand();
+                command.CommandText = """
+                    CREATE TABLE entities(id INTEGER PRIMARY KEY,class_name TEXT NOT NULL,canonical_name TEXT NOT NULL,namespace TEXT NOT NULL,metadata TEXT,created_at TEXT NOT NULL,updated_at TEXT NOT NULL);
+                    INSERT INTO entities VALUES(187,'SoftwareCapability',$description,'Kotodama',NULL,'2026-09-05T20:48:00.0000000+00:00','2026-09-05T20:48:00.0000000+00:00');
+                    """;
+                command.Parameters.AddWithValue("$description", description);
+                await command.ExecuteNonQueryAsync();
+            }
+
+            var migrated = new KnowledgeStore(legacyPath, TimeProvider.System);
+            await migrated.InitializeAsync();
+
+            (await migrated.GetStatementAsync(187))!.Text.Should().Be(description);
+            var reference = await migrated.GetEntityAsync(187);
+            reference!.ClassName.Should().Be("StatementRef");
+            reference.CanonicalName.Should().Be("statement:187");
+            (await migrated.SearchEntitiesAsync(description, includeRelated: false)).Should().BeEmpty();
         }
         finally
         {
