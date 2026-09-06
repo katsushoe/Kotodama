@@ -30,7 +30,7 @@ public sealed partial class KnowledgeStore
         var results = new List<TaggedClaim>();
         foreach (var id in ids)
         {
-            await using var command = TagCommand(connection, transaction, QuerySql + " WHERE c.id=$id", ("$id", id));
+            await using var command = TagCommand(connection, transaction, QuerySql + " WHERE p.claim_id=$id", ("$id", id));
             await using var reader = await command.ExecuteReaderAsync(cancellationToken);
             await reader.ReadAsync(cancellationToken);
             var claim = ReadClaim(reader);
@@ -140,8 +140,8 @@ public sealed partial class KnowledgeStore
         }
         var sql = input.TargetKind == "input"
             ? "SELECT DISTINCT e.id FROM knowledge_inputs e WHERE e.namespace=$namespace AND ($subject IS NULL OR EXISTS(SELECT 1 FROM claims c JOIN sources src ON src.id=c.source_id WHERE src.source_input_id=e.id AND c.knowledge_subject_id=$subject))"
-            : "SELECT c.id FROM claims c JOIN relations r ON r.id=c.relation_id LEFT JOIN directed_relations d ON d.relation_id=r.id LEFT JOIN symmetric_relations s ON s.relation_id=r.id JOIN entities a ON a.id=COALESCE(d.subject_id,s.entity_a_id) JOIN entities b ON b.id=COALESCE(d.object_id,s.entity_b_id) WHERE a.namespace=$namespace AND b.namespace=$namespace AND ($subject IS NULL OR c.knowledge_subject_id=$subject)";
-        var target = input.TargetKind == "input" ? "e.id" : "c.id";
+            : "SELECT p.claim_id FROM claim_search p WHERE p.subject_namespace=$namespace AND p.object_namespace=$namespace AND ($subject IS NULL OR p.knowledge_subject_id=$subject)";
+        var target = input.TargetKind == "input" ? "e.id" : "p.claim_id";
         await using var command = TagCommand(connection, transaction, sql, ("$namespace", input.Namespace), ("$subject", input.KnowledgeSubjectId));
         if (input.TargetIds is not null) command.CommandText += $" AND {target} IN ({AddTagIdParameters(command, input.TargetIds.Distinct(), "target")})";
         command.CommandText += $" ORDER BY {target}";

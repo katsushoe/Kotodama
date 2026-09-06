@@ -68,6 +68,7 @@ public sealed partial class KnowledgeStore
 
         await EnsureEventColumnsAsync(connection, cancellationToken);
         await InitializeStructuredKnowledgeAsync(connection, cancellationToken);
+        await InitializeClaimSearchAsync(connection, cancellationToken);
         await InitializeTagsAsync(connection, cancellationToken);
         if (migratedLegacyText || !await IsSecureCompactionCompleteAsync(connection, cancellationToken))
         {
@@ -199,7 +200,7 @@ public sealed partial class KnowledgeStore
         await using var transaction = connection.BeginTransaction(deferred: false);
         await using var find = connection.CreateCommand();
         find.Transaction = transaction;
-        find.CommandText = QuerySql + " WHERE c.id=$id AND c.status<>'active'";
+        find.CommandText = QuerySql + " WHERE p.claim_id=$id AND p.status<>'active'";
         find.Parameters.AddWithValue("$id", claimId);
         await using var reader = await find.ExecuteReaderAsync(cancellationToken);
         if (!await reader.ReadAsync(cancellationToken)) return new(false, "not_found", "inactive claim not found");
@@ -374,7 +375,7 @@ public sealed partial class KnowledgeStore
     {
         await using var connection = await OpenAsync(cancellationToken);
         await using var command = connection.CreateCommand();
-        command.CommandText = QuerySql + " WHERE ($entity IS NULL OR d.subject_id=$entity OR d.object_id=$entity OR s.entity_a_id=$entity OR s.entity_b_id=$entity) AND ($type IS NULL OR rt.canonical_name=$type) AND ($retracted=1 OR c.status<>'retracted') AND ($stale=1 OR c.status<>'stale') AND ($at IS NULL OR (c.valid_from IS NULL OR c.valid_from<=$at) AND (c.valid_to IS NULL OR c.valid_to>$at)) ORDER BY c.id";
+        command.CommandText = QuerySql + " WHERE ($entity IS NULL OR p.subject_id=$entity OR p.object_id=$entity) AND ($type IS NULL OR p.relation_type=$type) AND ($retracted=1 OR p.status<>'retracted') AND ($stale=1 OR p.status<>'stale') AND ($at IS NULL OR (p.valid_from IS NULL OR p.valid_from<=$at) AND (p.valid_to IS NULL OR p.valid_to>$at)) ORDER BY p.claim_id";
         command.Parameters.AddWithValue("$entity", (object?)entityId ?? DBNull.Value);
         command.Parameters.AddWithValue("$type", (object?)(relationType == "canonical_of" ? "equals" : relationType) ?? DBNull.Value);
         command.Parameters.AddWithValue("$retracted", includeRetracted ? 1 : 0);
@@ -616,7 +617,7 @@ public sealed partial class KnowledgeStore
     private async Task<long> InsertSourceAsync(SqliteConnection c, SqliteTransaction t, SourceInput x, CancellationToken token) { ValidateSourceInput(x); await using var q = c.CreateCommand(); q.Transaction = t; q.CommandText = "INSERT INTO sources(source_type,uri,external_id,title,author_entity_id,source_reliability,observed_at,metadata,source_input_id) VALUES($type,$uri,$external,$title,$author,$reliability,$now,$metadata,$input); SELECT last_insert_rowid();"; q.Parameters.AddWithValue("$type", x.SourceType); q.Parameters.AddWithValue("$uri", (object?)NormalizeSourceUri(x.Uri) ?? DBNull.Value); q.Parameters.AddWithValue("$external", (object?)x.ExternalId ?? DBNull.Value); q.Parameters.AddWithValue("$title", (object?)x.Title ?? DBNull.Value); q.Parameters.AddWithValue("$author", (object?)x.AuthorEntityId ?? DBNull.Value); q.Parameters.AddWithValue("$reliability", (object?)x.Reliability ?? DBNull.Value); q.Parameters.AddWithValue("$now", Format(Now())); q.Parameters.AddWithValue("$metadata", (object?)x.Metadata ?? DBNull.Value); q.Parameters.AddWithValue("$input", (object?)x.SourceInputId ?? DBNull.Value); return (long)(await q.ExecuteScalarAsync(token) ?? 0L); }
     private async Task<long> InsertClaimAsync(SqliteConnection c, SqliteTransaction t, long relationId, long? sourceId, ClaimCandidate x, CancellationToken token) { var now = Now(); await using var q = c.CreateCommand(); q.Transaction = t; q.CommandText = "INSERT INTO claims(relation_id,knowledge_subject_id,polarity,claim_confidence,attribution_confidence,strength,assertion_type,source_id,observed_at,valid_from,valid_to,last_confirmed_at,status,created_at,updated_at) VALUES($relation,$knowledge,$polarity,$confidence,$attribution,$strength,$assertion,$source,$observed,$from,$to,$confirmed,'active',$now,$now); SELECT last_insert_rowid();"; q.Parameters.AddWithValue("$relation", relationId); q.Parameters.AddWithValue("$knowledge", (object?)x.KnowledgeSubjectId ?? DBNull.Value); q.Parameters.AddWithValue("$polarity", Lower(x.Polarity)); q.Parameters.AddWithValue("$confidence", x.Confidence); q.Parameters.AddWithValue("$attribution", (object?)x.AttributionConfidence ?? DBNull.Value); q.Parameters.AddWithValue("$strength", (object?)x.Strength ?? DBNull.Value); q.Parameters.AddWithValue("$assertion", x.AssertionType); q.Parameters.AddWithValue("$source", (object?)sourceId ?? DBNull.Value); q.Parameters.AddWithValue("$observed", Format(x.ObservedAt ?? now)); q.Parameters.AddWithValue("$from", x.ValidFrom is null ? DBNull.Value : Format(x.ValidFrom.Value)); q.Parameters.AddWithValue("$to", x.ValidTo is null ? DBNull.Value : Format(x.ValidTo.Value)); q.Parameters.AddWithValue("$confirmed", x.LastConfirmedAt is null ? DBNull.Value : Format(x.LastConfirmedAt.Value)); q.Parameters.AddWithValue("$now", Format(now)); return (long)(await q.ExecuteScalarAsync(token) ?? 0L); }
 
-    private const string QuerySql = "SELECT c.id,r.id,rt.canonical_name,r.relation_kind,COALESCE(d.subject_id,s.entity_a_id),COALESCE(d.object_id,s.entity_b_id),c.polarity,c.claim_confidence,c.attribution_confidence,c.strength,c.knowledge_subject_id,c.source_id,c.assertion_type,c.observed_at,c.valid_from,c.valid_to,c.last_confirmed_at,c.status,src.source_input_id FROM claims c JOIN relations r ON r.id=c.relation_id JOIN relation_types rt ON rt.id=r.relation_type_id LEFT JOIN sources src ON src.id=c.source_id LEFT JOIN directed_relations d ON d.relation_id=r.id LEFT JOIN symmetric_relations s ON s.relation_id=r.id";
+    private const string QuerySql = "SELECT p.claim_id,p.relation_id,p.relation_type,p.relation_kind,p.subject_id,p.object_id,p.polarity,p.claim_confidence,p.attribution_confidence,p.strength,p.knowledge_subject_id,p.source_id,p.assertion_type,p.observed_at,p.valid_from,p.valid_to,p.last_confirmed_at,p.status,p.source_input_id FROM claim_search p";
     private const string Schema = """
 PRAGMA journal_mode=WAL;
 CREATE TABLE IF NOT EXISTS schema_metadata(key TEXT PRIMARY KEY,value TEXT NOT NULL);

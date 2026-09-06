@@ -10,6 +10,7 @@
 - `Source`: Claimの根拠となる文書、発言、URL等です。Knowledgeの主語とは別です。
 - `Event`: 発生日時、actor、action、objectを持つ独立したEntityです。
 - `SimilarityGroup`: グループ固有のthresholdとmember_of所属で類似クラスタを表すEntityです。
+- `ClaimSearch`: Claim検索用の派生投影です。主語・関係種別・目的語・状態・出典を平坦化しますが、知識の正本ではありません。
 
 構造化保存、Source経由のStatement追跡、similar_toとequalsの意味論は[構造化拡張の契約](STRUCTURED_KNOWLEDGE.ja.md)を参照してください。
 
