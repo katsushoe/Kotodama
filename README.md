@@ -25,7 +25,7 @@ After the Kotodama application or its supported plugin or extension is installed
 
 For example, an AI can remember that a person belonged to an organization during a particular period, preserve both an official announcement and a conflicting report, and later answer with the applicable time and evidence. Kotodama provides storage and retrieval tools; the AI or MCP client must call those tools, and Kotodama does not automatically import conversations or update knowledge from the Internet.
 
-Kotodama supplies server instructions during MCP initialization and exposes the `use_kotodama` MCP prompt. Explicit requests such as "remember this" can be persisted in one call with the `remember_knowledge` tool, which is preferred over built-in memory by the server instructions. Schedules and events can retain the original statement together with actor, place, time range, and event structure for retrieval through `query_events`. `configure claude` and `configure codex` also install client hooks that prompt knowledge retrieval before an answer and knowledge review after it. Raw transcripts are never stored. Directly supported facts may be selected even when their long-term usefulness is uncertain; dream gradually reduces confidence when they are not reconfirmed.
+Kotodama supplies server instructions during MCP initialization and exposes the `use_kotodama` MCP prompt. Explicit requests such as "remember this" can be processed in one call with the `remember_knowledge` tool. The raw statement is used only for in-memory term extraction and is never stored or returned. Schedules and events persist atomic actor, action, place, time range, and event structure for retrieval through `query_events`. `configure claude` and `configure codex` also install client hooks that prompt knowledge retrieval before an answer and knowledge review after it.
 
 For Codex, `plugins/kotodama` provides a plugin containing the MCP connection and the `kotodama-knowledge` skill. `configure codex` also installs the user-scoped `kotodama-curator` custom agent so post-response knowledge review can run in an isolated context. The parent agent performs the same review when the custom agent is unavailable.
 
@@ -76,11 +76,11 @@ Connect the MCP client to `http://127.0.0.1:39280/mcp`. When `KOTODAMA_HTTP_TOKE
 
 ## MCP tools
 
-`get_version`, `get_entity`, `get_statement`, `search_entities`, `get_equivalent_entities`, `merge_similarity_groups`, `create_entity`, `create_relation_type`, `update_relation_type`, `delete_relation_type`, `create_event`, `query_events`, `query_relations`, `query_claims`, `get_neighbors`, `get_knowledge_context`, `propose_claim`, `remember_knowledge`, `retract_claim`, `reactivate_claim`, `delete_claim`, `run_dream`, `create_tag`, `list_tags`, `rename_tag`, `add_tag_alias`, `merge_tags`, `set_knowledge_tags`, `query_tagged_statements`, and `query_tagged_claims` (30 tools).
+`get_version`, `get_entity`, `get_knowledge_input`, `get_statement`, `search_entities`, `get_equivalent_entities`, `merge_similarity_groups`, `create_entity`, `create_relation_type`, `update_relation_type`, `delete_relation_type`, `create_event`, `query_events`, `query_relations`, `query_claims`, `get_neighbors`, `get_knowledge_context`, `propose_claim`, `remember_knowledge`, `retract_claim`, `reactivate_claim`, `delete_claim`, `run_dream`, `create_tag`, `list_tags`, `rename_tag`, `add_tag_alias`, `merge_tags`, `set_knowledge_tags`, `query_tagged_inputs`, `query_tagged_statements`, and `query_tagged_claims` (32 tools). The two statement-named tools only return typed Protocol 2 migration errors.
 
-Optional `remember_knowledge.input.tags` atomically tags the statement and its claims. Tags support namespace-scoped Unicode normalization, exact AND/OR search, previewed bulk attachment, renaming, aliases, and ID-preserving merges. See the [tag contract and migration guide](KNOWLEDGE_TAGS.ja.md). `Kotodama call <tool> <arguments.json>` invokes the same tools through the running HTTP service; `call-help` prints usage.
+Optional `remember_knowledge.input.tags` atomically tags the text-free input and its claims. Tags support namespace-scoped Unicode normalization, exact AND/OR search, previewed bulk attachment, renaming, aliases, and ID-preserving merges. See the [tag contract and migration guide](KNOWLEDGE_TAGS.ja.md). `Kotodama call <tool> <arguments.json>` invokes the same tools through the running HTTP service; `call-help` prints usage.
 
-`remember_knowledge` requires `input.statement`, `input.entities`, and `input.relations`; original text is stored outside entities, and every entity must be one proper name, noun, short noun phrase, or identifier. It atomically saves extracted concepts and claims with a source-statement reference. Intentional empty structure requires `reason`; after at most three correction retries, structural failure falls back to statement-only persistence. Similarity is non-transitive, equality resolves a current equivalence set, and SimilarityGroup merges use member-weighted thresholds. See the [structured knowledge contract](STRUCTURED_KNOWLEDGE.ja.md) and [design decisions](STRUCTURED_KNOWLEDGE_DESIGN.ja.md).
+`remember_knowledge` requires `input.statement`, `input.entities`, and `input.relations`; every entity must be one proper name, noun, short noun phrase, or identifier. It stores a text-free `knowledge_inputs` row, unordered `input_terms`, concepts, and claims. Structural failure remains unpersisted after every retry. The removed `get_statement` and `query_tagged_statements` calls return a typed Protocol 2 incompatibility result. See the [structured knowledge contract](STRUCTURED_KNOWLEDGE.ja.md) and [design decisions](STRUCTURED_KNOWLEDGE_DESIGN.ja.md).
 
 Administrative tools also support claim reactivation and explicit physical deletion, plus RelationType update and deletion. RelationTypes that are still referenced are not deleted. In HTTP mode, dream runs periodically (3600 seconds by default), daily logs are written under the deployment `logs` directory, and `kotodama backup <destination.db>` creates an online SQLite backup.
 
@@ -90,12 +90,12 @@ The storage model preserves conflicting positive and negative claims, distinguis
 
 ### MSI installer
 
-Download [Kotodama-0.11.5-x64.msi](https://github.com/katsushoe/Kotodama/releases/download/v0.11.5/Kotodama-0.11.5-x64.msi), verify its SHA-256, and run it with administrator privileges:
+Download [Kotodama-0.16.2-x64.msi](https://github.com/katsushoe/Kotodama/releases/download/v0.16.2/Kotodama-0.16.2-x64.msi), verify its SHA-256, and run it with administrator privileges:
 
 ```powershell
-Get-FileHash .\Kotodama-0.11.5-x64.msi -Algorithm SHA256
+Get-FileHash .\Kotodama-0.16.2-x64.msi -Algorithm SHA256
 Start-Process msiexec.exe -Verb RunAs -Wait `
-  -ArgumentList '/i "Kotodama-0.11.5-x64.msi" /norestart'
+  -ArgumentList '/i "Kotodama-0.16.2-x64.msi" /norestart'
 ```
 
 The x64 MSI installs Kotodama under `C:\Kotodama`:
@@ -109,12 +109,12 @@ Configuration, databases, and logs are not included in the MSI. Non-empty data d
 
 ### Portable ZIP
 
-Download [Kotodama-0.11.5-win-x64.zip](https://github.com/katsushoe/Kotodama/releases/download/v0.11.5/Kotodama-0.11.5-win-x64.zip), verify its SHA-256, and extract it to a writable directory:
+Download [Kotodama-0.16.2-win-x64.zip](https://github.com/katsushoe/Kotodama/releases/download/v0.16.2/Kotodama-0.16.2-win-x64.zip), verify its SHA-256, and extract it to a writable directory:
 
 ```powershell
-Get-FileHash .\Kotodama-0.11.5-win-x64.zip -Algorithm SHA256
-Expand-Archive .\Kotodama-0.11.5-win-x64.zip -DestinationPath C:\Tools
-& C:\Tools\Kotodama\bin\Kotodama.exe
+Get-FileHash .\Kotodama-0.16.2-win-x64.zip -Algorithm SHA256
+Expand-Archive .\Kotodama-0.16.2-win-x64.zip -DestinationPath C:\Tools\Kotodama
+& C:\Tools\Kotodama\Kotodama.exe
 ```
 
 The ZIP is self-contained and does not require a separately installed .NET Runtime. It does not register Kotodama with Windows, modify `PATH`, or provide automatic upgrades. Preserve the extracted `data` directory when replacing a version.

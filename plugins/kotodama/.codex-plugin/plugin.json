@@ -1,6 +1,6 @@
 {
   "name": "kotodama",
-  "version": "0.15.1",
+  "version": "0.16.2",
   "description": "Persistent temporal and source-aware knowledge for Codex",
   "author": {
     "name": "Akatsukisoft",

@@ -4,18 +4,18 @@ namespace Kotodama;
 
 public sealed partial class KnowledgeStore
 {
-    /// <summary>保存文をタグの完全一致・AND/ORで検索します。</summary>
-    public async Task<IReadOnlyList<TaggedStatement>> QueryTaggedStatementsAsync(TagQueryInput input, CancellationToken cancellationToken = default)
+    /// <summary>本文を持たない知識入力をタグの完全一致・AND/ORで検索します。</summary>
+    public async Task<IReadOnlyList<TaggedKnowledgeInput>> QueryTaggedInputsAsync(TagQueryInput input, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(input);
         await using var connection = await OpenAsync(cancellationToken);
         await using var transaction = connection.BeginTransaction();
-        var ids = await FindTaggedTargetsAsync(connection, transaction, input, "statement", cancellationToken);
-        var results = new List<TaggedStatement>();
+        var ids = await FindTaggedTargetsAsync(connection, transaction, input, "input", cancellationToken);
+        var results = new List<TaggedKnowledgeInput>();
         foreach (var id in ids)
         {
-            var statement = await ReadStatementAsync(connection, transaction, id, cancellationToken);
-            results.Add(new(statement!, await ReadTagAssignmentsAsync(connection, transaction, "statement", id, cancellationToken)));
+            var knowledgeInput = await ReadKnowledgeInputAsync(connection, transaction, id, cancellationToken);
+            results.Add(new(knowledgeInput!, await ReadTagAssignmentsAsync(connection, transaction, "input", id, cancellationToken)));
         }
         return results;
     }
@@ -58,13 +58,13 @@ public sealed partial class KnowledgeStore
         foreach (var id in requestedIds) ids.Add(await ResolveTagIdAsync(connection, transaction, id, input.Namespace, token));
         if (ids.Count == 0 || unknown && input.TagMatch == "all") return [];
 
-        var sql = kind == "statement"
-            ? "SELECT e.id FROM statements e WHERE e.namespace=$namespace AND e.id>$after"
+        var sql = kind == "input"
+            ? "SELECT e.id FROM knowledge_inputs e WHERE e.namespace=$namespace AND e.id>$after"
             : "SELECT c.id FROM claims c WHERE c.id>$after AND ($retracted=1 OR c.status<>'retracted') AND ($stale=1 OR c.status<>'stale') AND ($at IS NULL OR (c.valid_from IS NULL OR c.valid_from<=$at) AND (c.valid_to IS NULL OR c.valid_to>$at))";
-        var target = kind == "statement" ? "e.id" : "c.id";
+        var target = kind == "input" ? "e.id" : "c.id";
         // kindは内部定数だけを渡し、利用者の値をSQL識別子へ展開しません。
-        var table = kind == "statement" ? "statement_tags" : "claim_tags";
-        var column = kind == "statement" ? "statement_id" : "claim_id";
+        var table = kind == "input" ? "input_tags" : "claim_tags";
+        var column = kind == "input" ? "input_id" : "claim_id";
         await using var command = TagCommand(connection, transaction, sql, ("$namespace", input.Namespace),
             ("$after", input.AfterId), ("$limit", input.Limit), ("$count", input.TagMatch == "all" ? ids.Count : 1),
             ("$retracted", input.IncludeRetracted), ("$stale", input.IncludeStale), ("$at", input.ValidAt is null ? null : Format(input.ValidAt.Value)));
@@ -88,9 +88,9 @@ public sealed partial class KnowledgeStore
     private static async Task<IReadOnlyList<TagAssignment>> ReadTagAssignmentsAsync(SqliteConnection connection, SqliteTransaction transaction,
         string kind, long id, CancellationToken token)
     {
-        var sql = kind == "statement"
-            ? "SELECT t.id,t.name,a.origin,NULL FROM statement_tags a JOIN tags t ON t.id=a.tag_id WHERE a.statement_id=$id ORDER BY t.id,a.origin"
-            : "SELECT t.id,t.name,a.origin,a.source_statement_id FROM claim_tags a JOIN tags t ON t.id=a.tag_id WHERE a.claim_id=$id ORDER BY t.id,a.origin";
+        var sql = kind == "input"
+            ? "SELECT t.id,t.name,a.origin,NULL FROM input_tags a JOIN tags t ON t.id=a.tag_id WHERE a.input_id=$id ORDER BY t.id,a.origin"
+            : "SELECT t.id,t.name,a.origin,a.source_input_id FROM claim_tags a JOIN tags t ON t.id=a.tag_id WHERE a.claim_id=$id ORDER BY t.id,a.origin";
         await using var command = TagCommand(connection, transaction, sql, ("$id", id));
         await using var reader = await command.ExecuteReaderAsync(token);
         var results = new List<TagAssignment>();
@@ -123,7 +123,7 @@ public sealed partial class KnowledgeStore
         ArgumentNullException.ThrowIfNull(input);
         ArgumentNullException.ThrowIfNull(input.TagIds);
         ArgumentException.ThrowIfNullOrWhiteSpace(input.Namespace);
-        if (input.TargetKind is not ("statement" or "claim")) throw new ArgumentException("targetKind must be statement or claim.");
+        if (input.TargetKind is not ("input" or "claim")) throw new ArgumentException("targetKind must be input or claim.");
         if (input.TagIds.Count is 0 or > MaximumTags) throw new ArgumentException("Specify 1 to 100 tagIds.");
         if ((input.TargetIds is null) == (input.KnowledgeSubjectId is null)) throw new ArgumentException("Specify targetIds or knowledgeSubjectId, exclusively.");
         if (input.TargetIds is { Count: 0 or > 200 }) throw new ArgumentException("Specify 1 to 200 targetIds.");
@@ -138,10 +138,10 @@ public sealed partial class KnowledgeStore
             var subject = await ReadEntityAsync(connection, transaction, subjectId, token);
             if (subject is null || subject.Namespace != input.Namespace) throw new ArgumentException("knowledgeSubjectId not found in namespace.");
         }
-        var sql = input.TargetKind == "statement"
-            ? "SELECT DISTINCT e.id FROM statements e WHERE e.namespace=$namespace AND ($subject IS NULL OR EXISTS(SELECT 1 FROM claims c JOIN directed_relations d ON d.relation_id=c.relation_id WHERE d.object_id=e.id AND c.assertion_type='remembered_text' AND c.knowledge_subject_id=$subject))"
+        var sql = input.TargetKind == "input"
+            ? "SELECT DISTINCT e.id FROM knowledge_inputs e WHERE e.namespace=$namespace AND ($subject IS NULL OR EXISTS(SELECT 1 FROM claims c JOIN sources src ON src.id=c.source_id WHERE src.source_input_id=e.id AND c.knowledge_subject_id=$subject))"
             : "SELECT c.id FROM claims c JOIN relations r ON r.id=c.relation_id LEFT JOIN directed_relations d ON d.relation_id=r.id LEFT JOIN symmetric_relations s ON s.relation_id=r.id JOIN entities a ON a.id=COALESCE(d.subject_id,s.entity_a_id) JOIN entities b ON b.id=COALESCE(d.object_id,s.entity_b_id) WHERE a.namespace=$namespace AND b.namespace=$namespace AND ($subject IS NULL OR c.knowledge_subject_id=$subject)";
-        var target = input.TargetKind == "statement" ? "e.id" : "c.id";
+        var target = input.TargetKind == "input" ? "e.id" : "c.id";
         await using var command = TagCommand(connection, transaction, sql, ("$namespace", input.Namespace), ("$subject", input.KnowledgeSubjectId));
         if (input.TargetIds is not null) command.CommandText += $" AND {target} IN ({AddTagIdParameters(command, input.TargetIds.Distinct(), "target")})";
         command.CommandText += $" ORDER BY {target}";
@@ -162,8 +162,8 @@ public sealed partial class KnowledgeStore
                 changed |= await InsertTagAssignmentAsync(connection, transaction, input.TargetKind, id, tagId, "manual", null, token);
                 continue;
             }
-            var sql = input.TargetKind == "statement"
-                ? "DELETE FROM statement_tags WHERE statement_id=$target AND tag_id=$tag"
+            var sql = input.TargetKind == "input"
+                ? "DELETE FROM input_tags WHERE input_id=$target AND tag_id=$tag"
                 : "DELETE FROM claim_tags WHERE claim_id=$target AND tag_id=$tag";
             await using var command = TagCommand(connection, transaction, sql, ("$target", id), ("$tag", tagId));
             changed |= await command.ExecuteNonQueryAsync(token) > 0;

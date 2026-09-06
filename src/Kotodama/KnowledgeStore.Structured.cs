@@ -19,57 +19,69 @@ public sealed partial class KnowledgeStore
     ];
 
     /// <summary>構造化知識を保存します。入力修正は呼び出し側が最大3回まで行います。</summary>
-    public Task<RememberKnowledgeResult> RememberStructuredKnowledgeAsync(StructuredKnowledgeInput input, CancellationToken cancellationToken = default)
+    public async Task<RememberKnowledgeResult> RememberStructuredKnowledgeAsync(StructuredKnowledgeInput input, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(input);
         if (input.RetryCount is < 0 or > MaximumStructureRetries) throw new ArgumentOutOfRangeException(nameof(input), "retryCount must be between 0 and 3");
         // 配列の欠落はAPI契約違反であり、明示的な空配列とは区別します。
         ArgumentNullException.ThrowIfNull(input.Entities);
         ArgumentNullException.ThrowIfNull(input.Relations);
-        return RememberKnowledgeAsync(new(input.Statement, input.Namespace, input.Confidence, input.Source, input.ObservedAt, input.ValidFrom, input.ValidTo, input.Event, input.Tags), cancellationToken, input);
-    }
-
-    private async Task<RememberKnowledgeResult> CompleteRememberAsync(SqliteConnection connection, SqliteTransaction transaction,
-        StructuredKnowledgeInput? input, RememberKnowledgeResult result, CancellationToken token, IReadOnlyList<string>? tags, string entityNamespace)
-    {
-        if (input is null)
-        {
-            if (await ApplyRememberTagsAsync(connection, transaction, result, tags, entityNamespace, token)) result = result with { Status = "stored" };
-            await transaction.CommitAsync(token);
-            return result;
-        }
-
-        transaction.Save("structure");
+        ArgumentException.ThrowIfNullOrWhiteSpace(input.Statement);
+        ArgumentException.ThrowIfNullOrWhiteSpace(input.Namespace);
+        if (!double.IsFinite(input.Confidence) || input.Confidence is < 0 or > 1)
+            throw new ArgumentOutOfRangeException(nameof(input), "confidence must be between 0 and 1");
+        if (input.ValidFrom is not null && input.ValidTo is not null && input.ValidTo <= input.ValidFrom)
+            throw new ArgumentException("validTo must be greater than validFrom", nameof(input));
+        ValidateRememberedEvent(input.Event);
+        ValidateSourceInput(input.Source, input.Statement);
+        NormalizeTagNames(input.Tags);
         try
         {
             ValidateStructure(input);
-            var (entities, created) = await PersistConceptsAsync(connection, transaction, input, token);
-            var (claims, createdClaims) = await PersistExtractedClaimsAsync(connection, transaction, input, result, entities, token);
-            var eventId = await PersistRememberedEventAsync(connection, transaction, result.StatementId, input.Statement, input.Namespace, input.Event, Now(), token);
-            result = result with
-            {
-                Status = created > 0 || createdClaims > 0 ? "stored" : result.Status,
-                CreatedEntities = result.CreatedEntities + created,
-                EntityIds = entities,
-                EventId = eventId,
-                ClaimIds = claims,
-                StructureStatus = input.Entities.Count == 0 || input.Relations.Count == 0 ? "skipped" : "structured",
-                Reason = input.Reason
-            };
-            transaction.Release("structure");
+            _termExtractor.Extract(input.Statement);
         }
         catch (ArgumentException error)
         {
-            // 契約上の入力エラーだけを返却/縮退し、DB障害やキャンセルは伝播します。
-            transaction.Rollback("structure");
-            transaction.Release("structure");
-            if (input.RetryCount < MaximumStructureRetries)
-                return new(false, "rejected", 0, 0, 0, 0, false) { StructureStatus = "rejected", Reason = error.Message };
-            result = result with { StructureStatus = "fallback", Reason = error.Message };
+            return new(false, "rejected", 0, 0, null, 0, false)
+            { StructureStatus = "rejected", Reason = error.Message };
         }
-        if (await ApplyRememberTagsAsync(connection, transaction, result, tags, entityNamespace, token)) result = result with { Status = "stored" };
-        await transaction.CommitAsync(token);
-        return result;
+
+        try
+        {
+            var now = Now();
+            await using var connection = await OpenAsync(cancellationToken);
+            await using var transaction = connection.BeginTransaction(deferred: false);
+            var (subjectId, subjectCreated) = await GetOrCreateEntityAsync(connection, transaction, "Conversation user", "KnowledgeSubject", input.Namespace, now, cancellationToken);
+            var inputId = await CreateKnowledgeInputAsync(connection, transaction, input.Namespace, now, cancellationToken);
+            var (entities, created) = await PersistConceptsAsync(connection, transaction, input, cancellationToken);
+            var explicitTerms = input.Entities.GroupBy(x => x.CanonicalName.Trim(), StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(x => x.Key, x => entities[x.First().Key], StringComparer.OrdinalIgnoreCase);
+            var termCount = await PersistInputTermsAsync(connection, transaction, inputId, input.Statement, input.Namespace, explicitTerms, now, cancellationToken);
+            foreach (var entityId in entities.Values.Distinct())
+            {
+                await InsertInputTermAsync(connection, transaction, inputId, entityId, 1, cancellationToken);
+            }
+            var (claims, _) = await PersistExtractedClaimsAsync(connection, transaction, input, inputId, subjectId, entities, cancellationToken);
+            var eventId = await PersistRememberedEventAsync(connection, transaction, inputId, input.Namespace, input.Event, now, cancellationToken);
+            if (termCount == 0 && entities.Count == 0 && claims.Count == 0 && eventId is null)
+                return new(false, "rejected", 0, 0, null, 0, false) { StructureStatus = "rejected", Reason = "No persistable atomic terms, claims, or event were provided." };
+            var result = new RememberKnowledgeResult(true, "stored", subjectId, inputId, claims.Count == 0 ? null : claims[0],
+                Convert.ToInt32(subjectCreated) + created, false, eventId)
+            {
+                EntityIds = entities,
+                ClaimIds = claims,
+                StructureStatus = claims.Count == 0 ? "terms_only" : "structured",
+                Reason = input.Reason
+            };
+            await ApplyRememberTagsAsync(connection, transaction, result, input.Tags, input.Namespace, cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            return result;
+        }
+        catch (ArgumentException error)
+        {
+            return new(false, "rejected", 0, 0, null, 0, false)
+            { StructureStatus = "rejected", Reason = error.Message };
+        }
     }
 
     private static void ValidateStructure(StructuredKnowledgeInput input)
@@ -120,7 +132,7 @@ public sealed partial class KnowledgeStore
     }
 
     private async Task<(List<long> Ids, int Created)> PersistExtractedClaimsAsync(SqliteConnection connection, SqliteTransaction transaction,
-        StructuredKnowledgeInput input, RememberKnowledgeResult statement, Dictionary<string, long> entities, CancellationToken token)
+        StructuredKnowledgeInput input, long inputId, long subjectId, Dictionary<string, long> entities, CancellationToken token)
     {
         var ids = new List<long>();
         var created = 0;
@@ -128,15 +140,15 @@ public sealed partial class KnowledgeStore
         {
             var type = await GetRelationTypeAsync(connection, transaction, edge.RelationType, token)
                 ?? throw new ArgumentException($"relation_type not found: {edge.RelationType}; create it before retrying.");
-            var source = (input.Source ?? new SourceInput("user_message")) with { SourceStatementId = statement.StatementId };
+            var source = (input.Source ?? new SourceInput("user_message")) with { SourceInputId = inputId };
             var candidate = new ClaimCandidate(entities[edge.Subject], entities[edge.Object], type.Name, edge.Polarity, edge.Confidence,
-                Strength: edge.Strength, KnowledgeSubjectId: statement.SubjectId, Source: source, AssertionType: "extracted",
+                Strength: edge.Strength, KnowledgeSubjectId: subjectId, Source: source, AssertionType: "extracted",
                 ObservedAt: input.ObservedAt, ValidFrom: input.ValidFrom, ValidTo: input.ValidTo, LastConfirmedAt: input.ObservedAt ?? Now());
             var error = KnowledgeRules.Validate(candidate, type.AllowStrength)
                 ?? await ValidateSemanticClaimAsync(connection, transaction, candidate, type.Kind, token);
             if (error is not null) throw new ArgumentException(error);
             var relationId = await GetOrCreateRelationAsync(connection, transaction, type.Id, type.Kind, candidate.SubjectId, candidate.ObjectId, token);
-            var claimId = await FindExtractedClaimAsync(connection, transaction, relationId, statement.StatementId, candidate, token);
+            var claimId = await FindExtractedClaimAsync(connection, transaction, relationId, inputId, candidate, token);
             if (claimId is long existing)
                 await ReconfirmRememberedClaimAsync(connection, transaction, existing, candidate.Confidence, Now(), token);
             else
@@ -151,19 +163,19 @@ public sealed partial class KnowledgeStore
     }
 
     private static async Task<long?> FindExtractedClaimAsync(SqliteConnection connection, SqliteTransaction transaction, long relationId,
-        long statementId, ClaimCandidate candidate, CancellationToken token)
+        long inputId, ClaimCandidate candidate, CancellationToken token)
     {
         await using var command = connection.CreateCommand();
         command.Transaction = transaction;
         command.CommandText = """
             SELECT c.id FROM claims c JOIN sources src ON src.id=c.source_id
-            WHERE c.relation_id=$relation AND src.source_statement_id=$statement
+            WHERE c.relation_id=$relation AND src.source_input_id=$input
               AND c.assertion_type='extracted' AND c.polarity=$polarity AND c.status<>'retracted'
               AND c.strength IS $strength AND c.valid_from IS $from AND c.valid_to IS $to
             ORDER BY c.id LIMIT 1
             """;
         command.Parameters.AddWithValue("$relation", relationId);
-        command.Parameters.AddWithValue("$statement", statementId);
+        command.Parameters.AddWithValue("$input", inputId);
         command.Parameters.AddWithValue("$polarity", Lower(candidate.Polarity));
         command.Parameters.AddWithValue("$strength", (object?)candidate.Strength ?? DBNull.Value);
         command.Parameters.AddWithValue("$from", candidate.ValidFrom is null ? DBNull.Value : Format(candidate.ValidFrom.Value));
@@ -206,8 +218,21 @@ public sealed partial class KnowledgeStore
         await command.ExecuteNonQueryAsync(token);
     }
 
-    private static string? NormalizeMetadata(string className, string? metadata) => className == "SimilarityGroup"
-        ? JsonSerializer.Serialize(new { threshold = ReadThreshold(metadata) }) : metadata;
+    private static string? NormalizeMetadata(string className, string? metadata)
+    {
+        if (className == "SimilarityGroup") return JsonSerializer.Serialize(new { threshold = ReadThreshold(metadata) });
+        if (metadata is null) return null;
+        try
+        {
+            using var document = JsonDocument.Parse(metadata);
+            ValidateMetadataElement(document.RootElement);
+            return JsonSerializer.Serialize(document.RootElement);
+        }
+        catch (JsonException error)
+        {
+            throw new ArgumentException("Entity metadata must be a JSON object containing only atomic scalar metadata.", nameof(metadata), error);
+        }
+    }
 
     private static double ReadThreshold(string? metadata)
     {
@@ -239,10 +264,10 @@ public sealed partial class KnowledgeStore
         await using var transaction = connection.BeginTransaction(deferred: false);
         await using var column = connection.CreateCommand();
         column.Transaction = transaction;
-        column.CommandText = "SELECT COUNT(*) FROM pragma_table_info('sources') WHERE name='source_statement_id'";
+        column.CommandText = "SELECT COUNT(*) FROM pragma_table_info('sources') WHERE name='source_input_id'";
         if (Convert.ToInt32(await column.ExecuteScalarAsync(token), CultureInfo.InvariantCulture) == 0)
         {
-            column.CommandText = "ALTER TABLE sources ADD COLUMN source_statement_id INTEGER REFERENCES entities(id)";
+            column.CommandText = "ALTER TABLE sources ADD COLUMN source_input_id INTEGER REFERENCES knowledge_inputs(id)";
             await column.ExecuteNonQueryAsync(token);
         }
         column.CommandText = "SELECT sql FROM sqlite_master WHERE name='symmetric_relations'";
@@ -266,7 +291,7 @@ public sealed partial class KnowledgeStore
         column.CommandText = """
             INSERT OR IGNORE INTO relation_type_aliases(relation_type_id,alias)
             SELECT id,'canonical_of' FROM relation_types WHERE canonical_name='equals';
-            CREATE INDEX IF NOT EXISTS idx_sources_statement ON sources(source_statement_id);
+            CREATE INDEX IF NOT EXISTS idx_sources_input ON sources(source_input_id);
             """;
         await column.ExecuteNonQueryAsync(token);
         var alias = await GetRelationTypeAsync(connection, transaction, "canonical_of", token);

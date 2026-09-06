@@ -25,11 +25,13 @@ internal static class TagProtocolChecks
             }
         });
         saved.GetProperty("ok").GetBoolean().Should().BeTrue();
-        var statements = await CallAsync(client, "query_tagged_statements", new() { ["input"] = new { tags = new[] { "protocol", "shared" }, tagMatch = "all" } });
+        var statements = await CallAsync(client, "query_tagged_inputs", new() { ["input"] = new { tags = new[] { "protocol", "shared" }, tagMatch = "all" } });
         statements.GetArrayLength().Should().Be(1);
-        statements[0].GetProperty("statement").GetProperty("text").GetString().Should().Be("Protocol fact");
+        var input = statements[0].GetProperty("input");
+        input.TryGetProperty("text", out _).Should().BeFalse();
+        input.GetProperty("terms").GetArrayLength().Should().BeGreaterThan(0);
         var claims = await CallAsync(client, "query_tagged_claims", new() { ["input"] = new { tags = new[] { "protocol" } } });
-        claims.GetArrayLength().Should().Be(2);
+        claims.GetArrayLength().Should().Be(1);
         claims[0].GetProperty("tags")[0].GetProperty("origin").GetString().Should().Be("inherited");
         var tag = await CallAsync(client, "create_tag", new() { ["name"] = "Protocol" });
         var id = tag.GetProperty("id").GetInt64();
@@ -43,8 +45,8 @@ internal static class TagProtocolChecks
         {
             ["input"] = new
             {
-                targetKind = "statement",
-                targetIds = new[] { saved.GetProperty("statementId").GetInt64() },
+                targetKind = "input",
+                targetIds = new[] { saved.GetProperty("inputId").GetInt64() },
                 tagIds = new[] { id },
                 remove = true,
             }
@@ -55,16 +57,16 @@ internal static class TagProtocolChecks
         {
             ["input"] = new
             {
-                targetKind = "statement",
-                targetIds = new[] { saved.GetProperty("statementId").GetInt64() },
+                targetKind = "input",
+                targetIds = new[] { saved.GetProperty("inputId").GetInt64() },
                 tagIds = new[] { id },
                 remove = true,
                 dryRun = false,
                 expectedCount = 1,
             }
         });
-        (await CallAsync(client, "query_tagged_statements", new() { ["input"] = new { tags = new[] { "Alias" } } })).GetArrayLength().Should().Be(0);
-        (await CallAsync(client, "query_tagged_claims", new() { ["input"] = new { tags = new[] { "Alias" } } })).GetArrayLength().Should().Be(2);
+        (await CallAsync(client, "query_tagged_inputs", new() { ["input"] = new { tags = new[] { "Alias" } } })).GetArrayLength().Should().Be(0);
+        (await CallAsync(client, "query_tagged_claims", new() { ["input"] = new { tags = new[] { "Alias" } } })).GetArrayLength().Should().Be(1);
         var invalid = await client.CallToolAsync("query_tagged_claims", new Dictionary<string, object?> { ["input"] = new { tags = new[] { "Protocol" }, tagMatch = "invalid" } });
         invalid.IsError.Should().BeTrue();
     }

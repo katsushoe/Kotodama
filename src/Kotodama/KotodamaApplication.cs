@@ -26,7 +26,7 @@ internal static class KotodamaApplication
 
         if (args.SequenceEqual(["call-help"], StringComparer.OrdinalIgnoreCase))
         {
-            Console.WriteLine("Kotodama call <tool> <arguments.json>\nCalls any MCP tool on the running HTTP service. Arguments match the MCP schema.\nKOTODAMA_HTTP_URL sets the service URL; KOTODAMA_HTTP_TOKEN sets bearer authentication.\nExit code: 0 success, nonzero tool/input/connection error. Timeout: 60 seconds.\nTag tools: create_tag, list_tags, rename_tag, add_tag_alias, merge_tags, set_knowledge_tags, query_tagged_statements, query_tagged_claims.\nset_knowledge_tags defaults to dryRun=true; execution requires expectedCount.");
+            Console.WriteLine("Kotodama call <tool> <arguments.json>\nCalls any MCP tool on the running HTTP service. Arguments match the MCP schema.\nKOTODAMA_HTTP_URL sets the service URL; KOTODAMA_HTTP_TOKEN sets bearer authentication.\nExit code: 0 success, nonzero tool/input/connection error. Timeout: 60 seconds.\nTag tools: create_tag, list_tags, rename_tag, add_tag_alias, merge_tags, set_knowledge_tags, query_tagged_inputs, query_tagged_claims.\nset_knowledge_tags defaults to dryRun=true; execution requires expectedCount.");
             return Task.FromResult(0);
         }
 

@@ -4,7 +4,7 @@ namespace Kotodama;
 
 /// <summary>抽出済みの概念と関係を伴う知識登録要求です。</summary>
 public sealed record StructuredKnowledgeInput(
-    [Description("改変せずStatementへ保存する原文。Entity名には使用しません。")]
+    [Description("解析中だけMemoryで扱う入力文。DB、Log、応答には保存しません。")]
     string Statement,
     [Description("原文から分解した原子的な概念。各要素は1つの固有名・名詞・短い名詞句・識別子です。")]
     IReadOnlyList<RememberedEntityInput> Entities,
@@ -17,9 +17,9 @@ public sealed record StructuredKnowledgeInput(
     DateTimeOffset? ValidFrom = null,
     DateTimeOffset? ValidTo = null,
     RememberedEventInput? Event = null,
-    [Description("呼び出し元が管理する再入力回数。0が初回、1～3が再入力。3回目の構造エラーは原文保存へ縮退します。")]
+    [Description("呼び出し元が管理する再入力回数。0が初回、1～3が再入力。最終失敗も未保存で返します。")]
     int RetryCount = 0,
-    [Description("namespace内の正規名・別名で指定するタグ。Statementと当該保存のClaimへ原子的に付与します。")]
+    [Description("namespace内の正規名・別名で指定するタグ。本文を持たない入力単位とClaimへ原子的に付与します。")]
     IReadOnlyList<string>? Tags = null);
 
 /// <summary>keyで関係から参照する概念。既存EntityはentityIdを指定します。</summary>

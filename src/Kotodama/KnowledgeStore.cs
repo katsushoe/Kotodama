@@ -14,43 +14,66 @@ public sealed partial class KnowledgeStore
     private readonly TimeProvider _timeProvider;
     private readonly DreamTempStore _dreamTempStore;
     private readonly IDreamExecutionHook _dreamExecutionHook;
+    private readonly ITermExtractor _termExtractor;
 
     /// <summary>ストアを生成します。</summary>
     public KnowledgeStore(string databasePath, TimeProvider timeProvider, DreamTempStore dreamTempStore = DreamTempStore.Default)
-        : this(databasePath, timeProvider, dreamTempStore, NoOpDreamExecutionHook.Instance)
+        : this(databasePath, timeProvider, dreamTempStore, NoOpDreamExecutionHook.Instance, new DeterministicTermExtractor())
+    {
+    }
+
+    /// <summary>指定した語彙抽出器でストアを生成します。</summary>
+    public KnowledgeStore(string databasePath, TimeProvider timeProvider, ITermExtractor termExtractor, DreamTempStore dreamTempStore = DreamTempStore.Default)
+        : this(databasePath, timeProvider, dreamTempStore, NoOpDreamExecutionHook.Instance, termExtractor)
     {
     }
 
     internal KnowledgeStore(string databasePath, TimeProvider timeProvider, DreamTempStore dreamTempStore, IDreamExecutionHook dreamExecutionHook)
+        : this(databasePath, timeProvider, dreamTempStore, dreamExecutionHook, new DeterministicTermExtractor())
+    {
+    }
+
+    internal KnowledgeStore(string databasePath, TimeProvider timeProvider, DreamTempStore dreamTempStore, IDreamExecutionHook dreamExecutionHook, ITermExtractor termExtractor)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(databasePath);
         ArgumentNullException.ThrowIfNull(timeProvider);
         ArgumentNullException.ThrowIfNull(dreamExecutionHook);
+        ArgumentNullException.ThrowIfNull(termExtractor);
         _connectionString = new SqliteConnectionStringBuilder { DataSource = databasePath, ForeignKeys = true }.ToString();
         _timeProvider = timeProvider;
         _dreamTempStore = dreamTempStore;
         _dreamExecutionHook = dreamExecutionHook;
+        _termExtractor = termExtractor;
     }
 
     /// <summary>DBスキーマを初期化します。</summary>
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
         await using var connection = await OpenAsync(cancellationToken);
-        await using var command = connection.CreateCommand();
-        command.CommandText = Schema;
-        await command.ExecuteNonQueryAsync(cancellationToken);
+        await using (var command = connection.CreateCommand())
+        {
+            command.CommandText = Schema;
+            await command.ExecuteNonQueryAsync(cancellationToken);
+        }
 
-        await InitializeStatementsAsync(connection, cancellationToken);
+        var migratedLegacyText = await MigrateLegacyStatementsAsync(connection, cancellationToken);
 
-        await using var migration = connection.CreateCommand();
-        migration.CommandText = "UPDATE relation_types SET freshness_policy='periodic',refresh_after_seconds=$refresh,updated_at=$now WHERE canonical_name='remembers' AND freshness_policy='permanent' AND refresh_after_seconds IS NULL";
-        migration.Parameters.AddWithValue("$refresh", RememberRefreshAfterSeconds);
-        migration.Parameters.AddWithValue("$now", Format(Now()));
-        await migration.ExecuteNonQueryAsync(cancellationToken);
+        await using (var migration = connection.CreateCommand())
+        {
+            migration.CommandText = "UPDATE relation_types SET freshness_policy='periodic',refresh_after_seconds=$refresh,updated_at=$now WHERE canonical_name='remembers' AND freshness_policy='permanent' AND refresh_after_seconds IS NULL";
+            migration.Parameters.AddWithValue("$refresh", RememberRefreshAfterSeconds);
+            migration.Parameters.AddWithValue("$now", Format(Now()));
+            await migration.ExecuteNonQueryAsync(cancellationToken);
+        }
 
         await EnsureEventColumnsAsync(connection, cancellationToken);
         await InitializeStructuredKnowledgeAsync(connection, cancellationToken);
         await InitializeTagsAsync(connection, cancellationToken);
+        if (migratedLegacyText || !await IsSecureCompactionCompleteAsync(connection, cancellationToken))
+        {
+            await SecureCompactAsync(connection, cancellationToken);
+            await MarkSecureCompactionCompleteAsync(connection, cancellationToken);
+        }
     }
 
     /// <summary>Entity を登録します。</summary>
@@ -107,12 +130,14 @@ public sealed partial class KnowledgeStore
         ArgumentNullException.ThrowIfNull(input);
         ArgumentException.ThrowIfNullOrWhiteSpace(input.Action);
         ValidateAtomicEntityName(input.CanonicalName, "Event");
+        ValidateAtomicEntityName(input.Action, "EventAction");
         if (input.ObjectId is null && string.IsNullOrWhiteSpace(input.ObjectValue)) throw new ArgumentException("object_id or object_value is required", nameof(input));
+        ValidateOptionalAtomicMetadata(input.ObjectValue, "event objectValue");
         if (input.EndsAt is not null && input.EndsAt <= input.OccurredAt) throw new ArgumentException("ends_at must be greater than occurred_at", nameof(input));
         var entity = await CreateEntityAsync(new(input.CanonicalName, "Event", input.Namespace, input.Metadata), cancellationToken);
         await using var connection = await OpenAsync(cancellationToken);
         await using var command = connection.CreateCommand();
-        command.CommandText = "INSERT INTO events(entity_id,actor_id,occurred_at,action,object_id,object_value,ends_at,source_statement_id) VALUES($entity,$actor,$occurred,$action,$object,$value,$ends,$statement)";
+        command.CommandText = "INSERT INTO events(entity_id,actor_id,occurred_at,action,object_id,object_value,ends_at,source_input_id) VALUES($entity,$actor,$occurred,$action,$object,$value,$ends,$input)";
         command.Parameters.AddWithValue("$entity", entity.Id);
         command.Parameters.AddWithValue("$actor", (object?)input.ActorId ?? DBNull.Value);
         command.Parameters.AddWithValue("$occurred", Format(input.OccurredAt));
@@ -120,9 +145,9 @@ public sealed partial class KnowledgeStore
         command.Parameters.AddWithValue("$object", (object?)input.ObjectId ?? DBNull.Value);
         command.Parameters.AddWithValue("$value", (object?)input.ObjectValue ?? DBNull.Value);
         command.Parameters.AddWithValue("$ends", input.EndsAt is null ? DBNull.Value : Format(input.EndsAt.Value));
-        command.Parameters.AddWithValue("$statement", (object?)input.SourceStatementId ?? DBNull.Value);
+        command.Parameters.AddWithValue("$input", (object?)input.SourceInputId ?? DBNull.Value);
         await command.ExecuteNonQueryAsync(cancellationToken);
-        return new(entity.Id, entity.CanonicalName, input.ActorId, input.OccurredAt, input.Action, input.ObjectId, input.ObjectValue, input.EndsAt, input.SourceStatementId);
+        return new(entity.Id, entity.CanonicalName, input.ActorId, input.OccurredAt, input.Action, input.ObjectId, input.ObjectValue, input.EndsAt, input.SourceInputId);
     }
 
     /// <summary>Knowledge Candidate を検証し、Relation と Claim を保存します。</summary>
@@ -146,52 +171,12 @@ public sealed partial class KnowledgeStore
         return new(true, "accepted", Id: claimId);
     }
 
-    /// <summary>自然文をStatementへ保存し、Entityとは分離します。</summary>
+    /// <summary>旧自然文APIはProtocol 2で廃止されました。</summary>
     public async Task<RememberKnowledgeResult> RememberKnowledgeAsync(RememberKnowledgeInput input, CancellationToken cancellationToken = default, StructuredKnowledgeInput? structure = null)
     {
         ArgumentNullException.ThrowIfNull(input);
-        ArgumentException.ThrowIfNullOrWhiteSpace(input.Text);
-        ArgumentException.ThrowIfNullOrWhiteSpace(input.Namespace);
-        if (!double.IsFinite(input.Confidence) || input.Confidence is < 0 or > 1) throw new ArgumentOutOfRangeException(nameof(input), "confidence must be between 0 and 1");
-        if (input.ValidFrom is not null && input.ValidTo is not null && input.ValidTo <= input.ValidFrom) throw new ArgumentException("valid_to must be greater than valid_from", nameof(input));
-        ValidateRememberedEvent(input.Event);
-        NormalizeTagNames(input.Tags);
-
-        var text = structure is null ? input.Text.Trim() : input.Text;
-        var now = Now();
-        await using var connection = await OpenAsync(cancellationToken);
-        await using var transaction = connection.BeginTransaction(deferred: false);
-        var (subjectId, subjectCreated) = await GetOrCreateEntityAsync(connection, transaction, "Conversation user", "KnowledgeSubject", input.Namespace, now, cancellationToken);
-        var (statementId, _) = await GetOrCreateStatementAsync(connection, transaction, text, input.Namespace, now, cancellationToken);
-        var (relationTypeId, relationTypeCreated) = await GetOrCreateRememberRelationTypeAsync(connection, transaction, now, cancellationToken);
-        var relationId = await GetOrCreateRelationAsync(connection, transaction, relationTypeId, RelationKind.Directed, subjectId, statementId, cancellationToken);
-        var existingClaimId = await FindRememberedClaimAsync(connection, transaction, relationId, cancellationToken);
-        if (existingClaimId is not null)
-        {
-            await ReconfirmRememberedClaimAsync(connection, transaction, existingClaimId.Value, input.Confidence, now, cancellationToken);
-            var existingEventId = structure is null ? await PersistRememberedEventAsync(connection, transaction, statementId, text, input.Namespace, input.Event, now, cancellationToken) : null;
-            return await CompleteRememberAsync(connection, transaction, structure,
-                new(true, "already_stored", subjectId, statementId, existingClaimId.Value, Convert.ToInt32(subjectCreated), relationTypeCreated, existingEventId), cancellationToken, input.Tags, input.Namespace);
-        }
-
-        var source = input.Source ?? new SourceInput("user_message");
-        var sourceId = await InsertSourceAsync(connection, transaction, source, cancellationToken);
-        var candidate = new ClaimCandidate(
-            subjectId,
-            statementId,
-            "remembers",
-            Confidence: input.Confidence,
-            KnowledgeSubjectId: subjectId,
-            Source: source,
-            AssertionType: "remembered_text",
-            ObservedAt: input.ObservedAt,
-            ValidFrom: input.ValidFrom,
-            ValidTo: input.ValidTo,
-            LastConfirmedAt: input.ObservedAt ?? now);
-        var claimId = await InsertClaimAsync(connection, transaction, relationId, sourceId, candidate, cancellationToken);
-        var eventId = structure is null ? await PersistRememberedEventAsync(connection, transaction, statementId, text, input.Namespace, input.Event, now, cancellationToken) : null;
-        return await CompleteRememberAsync(connection, transaction, structure,
-            new(true, "stored", subjectId, statementId, claimId, Convert.ToInt32(subjectCreated), relationTypeCreated, eventId), cancellationToken, input.Tags, input.Namespace);
+        await Task.CompletedTask;
+        throw new InvalidOperationException("protocol_incompatible: RememberKnowledgeInput was removed in protocol 2. Use StructuredKnowledgeInput with atomic entities and relations.");
     }
 
     /// <summary>Claim を論理撤回します。</summary>
@@ -314,11 +299,11 @@ public sealed partial class KnowledgeStore
         return await reader.ReadAsync(cancellationToken) ? ReadEntity(reader) : null;
     }
 
-    /// <summary>保存原文を取得します。</summary>
-    public async Task<StatementRecord?> GetStatementAsync(long id, CancellationToken cancellationToken = default)
+    /// <summary>本文を持たない知識入力と順序を持たない語彙を取得します。</summary>
+    public async Task<KnowledgeInputRecord?> GetKnowledgeInputAsync(long id, CancellationToken cancellationToken = default)
     {
         await using var connection = await OpenAsync(cancellationToken);
-        return await ReadStatementAsync(connection, null, id, cancellationToken);
+        return await ReadKnowledgeInputAsync(connection, null, id, cancellationToken);
     }
 
     /// <summary>Entity を名前で検索します。</summary>
@@ -327,7 +312,7 @@ public sealed partial class KnowledgeStore
         ArgumentNullException.ThrowIfNull(query);
         await using var connection = await OpenAsync(cancellationToken);
         await using var command = connection.CreateCommand();
-        command.CommandText = "SELECT id,canonical_name,class_name,namespace,metadata,created_at,updated_at FROM entities WHERE class_name<>'StatementRef' AND canonical_name LIKE $query ESCAPE '\\' ORDER BY canonical_name LIMIT $limit";
+        command.CommandText = "SELECT id,canonical_name,class_name,namespace,metadata,created_at,updated_at FROM entities WHERE canonical_name LIKE $query ESCAPE '\\' ORDER BY canonical_name LIMIT $limit";
         command.Parameters.AddWithValue("$query", $"%{EscapeLike(query)}%");
         command.Parameters.AddWithValue("$limit", Math.Clamp(limit, 1, 200));
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
@@ -345,12 +330,11 @@ public sealed partial class KnowledgeStore
         await using var connection = await OpenAsync(cancellationToken);
         await using var command = connection.CreateCommand();
         command.CommandText = """
-            SELECT e.entity_id,event_entity.canonical_name,e.actor_id,actor.canonical_name,e.occurred_at,e.ends_at,e.action,e.object_id,place.canonical_name,e.source_statement_id,statement.text
+            SELECT e.entity_id,event_entity.canonical_name,e.actor_id,actor.canonical_name,e.occurred_at,e.ends_at,e.action,e.object_id,place.canonical_name,e.source_input_id
             FROM events e
             JOIN entities event_entity ON event_entity.id=e.entity_id
             LEFT JOIN entities actor ON actor.id=e.actor_id
             LEFT JOIN entities place ON place.id=e.object_id
-            LEFT JOIN statements statement ON statement.id=e.source_statement_id
             WHERE event_entity.namespace=$namespace
               AND ($actor IS NULL OR actor.canonical_name LIKE $actor ESCAPE '\')
               AND ($place IS NULL OR place.canonical_name LIKE $place ESCAPE '\')
@@ -379,8 +363,7 @@ public sealed partial class KnowledgeStore
                 reader.GetString(6),
                 reader.IsDBNull(7) ? null : reader.GetInt64(7),
                 reader.IsDBNull(8) ? null : reader.GetString(8),
-                reader.IsDBNull(9) ? null : reader.GetInt64(9),
-                reader.IsDBNull(10) ? null : reader.GetString(10)));
+                reader.IsDBNull(9) ? null : reader.GetInt64(9)));
         }
 
         return results;
@@ -489,21 +472,11 @@ public sealed partial class KnowledgeStore
             SELECT c.id,
                    c.updated_at,
                    CASE
-                       WHEN rt.canonical_name = 'remembers'
-                            AND unixepoch($now) - unixepoch(c.updated_at) > rt.refresh_after_seconds
-                            AND c.claim_confidence * $decay < $stale_threshold
-                           THEN 'stale'
                        WHEN unixepoch($now) - unixepoch(COALESCE(c.last_confirmed_at, c.observed_at)) > rt.refresh_after_seconds
-                            AND rt.canonical_name <> 'remembers'
                            THEN 'stale'
                        ELSE 'active'
                    END,
-                   CASE
-                       WHEN rt.canonical_name = 'remembers'
-                            AND unixepoch($now) - unixepoch(c.updated_at) > rt.refresh_after_seconds
-                           THEN c.claim_confidence * $decay
-                       ELSE c.claim_confidence
-                   END,
+                   c.claim_confidence,
                    $now
             FROM claims c
             JOIN relations r ON r.id = c.relation_id
@@ -513,8 +486,6 @@ public sealed partial class KnowledgeStore
               AND rt.refresh_after_seconds IS NOT NULL;
             """;
         command.Parameters.AddWithValue("$now", Format(now));
-        command.Parameters.AddWithValue("$decay", RememberDecayFactor);
-        command.Parameters.AddWithValue("$stale_threshold", RememberStaleThreshold);
         await command.ExecuteNonQueryAsync(token);
     }
 
@@ -538,18 +509,21 @@ public sealed partial class KnowledgeStore
         ArgumentException.ThrowIfNullOrWhiteSpace(input.Actor);
         ArgumentException.ThrowIfNullOrWhiteSpace(input.Action);
         ArgumentException.ThrowIfNullOrWhiteSpace(input.Place);
+        ValidateAtomicEntityName(input.Actor, "Actor");
+        ValidateAtomicEntityName(input.Action, "EventAction");
+        ValidateAtomicEntityName(input.Place, "Place");
         if (input.EndsAt <= input.StartsAt) throw new ArgumentException("event ends_at must be greater than starts_at", nameof(input));
     }
 
     private static async Task EnsureEventColumnsAsync(SqliteConnection connection, CancellationToken token)
     {
         await EnsureColumnAsync(connection, "ends_at", "ALTER TABLE events ADD COLUMN ends_at TEXT", token);
-        await EnsureColumnAsync(connection, "source_statement_id", "ALTER TABLE events ADD COLUMN source_statement_id INTEGER REFERENCES entities(id)", token);
+        await EnsureColumnAsync(connection, "source_input_id", "ALTER TABLE events ADD COLUMN source_input_id INTEGER REFERENCES knowledge_inputs(id)", token);
         await using var indexes = connection.CreateCommand();
         indexes.CommandText = """
             CREATE INDEX IF NOT EXISTS idx_events_actor_time ON events(actor_id,occurred_at);
             CREATE INDEX IF NOT EXISTS idx_events_object_time ON events(object_id,occurred_at);
-            CREATE UNIQUE INDEX IF NOT EXISTS idx_events_source_statement ON events(source_statement_id) WHERE source_statement_id IS NOT NULL;
+            CREATE INDEX IF NOT EXISTS idx_events_source_input ON events(source_input_id) WHERE source_input_id IS NOT NULL;
             """;
         await indexes.ExecuteNonQueryAsync(token);
     }
@@ -594,13 +568,13 @@ public sealed partial class KnowledgeStore
         return ((long)(await insert.ExecuteScalarAsync(token) ?? 0L), true);
     }
 
-    private static async Task<long?> PersistRememberedEventAsync(SqliteConnection connection, SqliteTransaction transaction, long statementId, string statementText, string entityNamespace, RememberedEventInput? input, DateTimeOffset now, CancellationToken token)
+    private static async Task<long?> PersistRememberedEventAsync(SqliteConnection connection, SqliteTransaction transaction, long inputId, string entityNamespace, RememberedEventInput? input, DateTimeOffset now, CancellationToken token)
     {
         if (input is null) return null;
         await using var find = connection.CreateCommand();
         find.Transaction = transaction;
-        find.CommandText = "SELECT entity_id FROM events WHERE source_statement_id=$statement";
-        find.Parameters.AddWithValue("$statement", statementId);
+        find.CommandText = "SELECT entity_id FROM events WHERE source_input_id=$input";
+        find.Parameters.AddWithValue("$input", inputId);
         var existing = await find.ExecuteScalarAsync(token);
         if (existing is long existingId) return existingId;
 
@@ -609,47 +583,20 @@ public sealed partial class KnowledgeStore
         if (!string.IsNullOrWhiteSpace(input.CanonicalName)) ValidateAtomicEntityName(input.CanonicalName, "Event");
         ValidateAtomicEntityName(input.Actor, "Actor");
         ValidateAtomicEntityName(input.Place, "Place");
-        var canonicalName = string.IsNullOrWhiteSpace(input.CanonicalName) ? $"event:{statementId}" : input.CanonicalName.Trim();
+        var canonicalName = string.IsNullOrWhiteSpace(input.CanonicalName) ? $"event:{inputId}" : input.CanonicalName.Trim();
         var (eventId, _) = await GetOrCreateEntityAsync(connection, transaction, canonicalName, "Event", entityNamespace, now, token);
         await using var insert = connection.CreateCommand();
         insert.Transaction = transaction;
-        insert.CommandText = "INSERT INTO events(entity_id,actor_id,occurred_at,action,object_id,ends_at,source_statement_id) VALUES($entity,$actor,$starts,$action,$place,$ends,$statement)";
+        insert.CommandText = "INSERT INTO events(entity_id,actor_id,occurred_at,action,object_id,ends_at,source_input_id) VALUES($entity,$actor,$starts,$action,$place,$ends,$input)";
         insert.Parameters.AddWithValue("$entity", eventId);
         insert.Parameters.AddWithValue("$actor", actorId);
         insert.Parameters.AddWithValue("$starts", Format(input.StartsAt));
         insert.Parameters.AddWithValue("$action", input.Action.Trim());
         insert.Parameters.AddWithValue("$place", placeId);
         insert.Parameters.AddWithValue("$ends", Format(input.EndsAt));
-        insert.Parameters.AddWithValue("$statement", statementId);
+        insert.Parameters.AddWithValue("$input", inputId);
         await insert.ExecuteNonQueryAsync(token);
         return eventId;
-    }
-
-    private static async Task<(long Id, bool Created)> GetOrCreateRememberRelationTypeAsync(SqliteConnection c, SqliteTransaction t, DateTimeOffset now, CancellationToken token)
-    {
-        await using var find = c.CreateCommand();
-        find.Transaction = t;
-        find.CommandText = "SELECT id FROM relation_types WHERE canonical_name='remembers'";
-        var existing = await find.ExecuteScalarAsync(token);
-        if (existing is long id) return (id, false);
-
-        await using var insert = c.CreateCommand();
-        insert.Transaction = t;
-        insert.CommandText = "INSERT INTO relation_types(canonical_name,category,directionality,allow_strength,freshness_policy,refresh_after_seconds,description,created_at,updated_at) VALUES('remembers','memory','directed',0,'periodic',$refresh,$description,$now,$now); SELECT last_insert_rowid();";
-        insert.Parameters.AddWithValue("$refresh", RememberRefreshAfterSeconds);
-        insert.Parameters.AddWithValue("$description", "A conversation user explicitly requested that a textual fact be retained.");
-        insert.Parameters.AddWithValue("$now", Format(now));
-        return ((long)(await insert.ExecuteScalarAsync(token) ?? 0L), true);
-    }
-
-    private static async Task<long?> FindRememberedClaimAsync(SqliteConnection c, SqliteTransaction t, long relationId, CancellationToken token)
-    {
-        await using var find = c.CreateCommand();
-        find.Transaction = t;
-        find.CommandText = "SELECT id FROM claims WHERE relation_id=$relation AND assertion_type='remembered_text' AND polarity='positive' AND status<>'retracted' ORDER BY id LIMIT 1";
-        find.Parameters.AddWithValue("$relation", relationId);
-        var existing = await find.ExecuteScalarAsync(token);
-        return existing is long id ? id : null;
     }
 
     private static async Task ReconfirmRememberedClaimAsync(SqliteConnection c, SqliteTransaction t, long claimId, double confidence, DateTimeOffset now, CancellationToken token)
@@ -666,16 +613,19 @@ public sealed partial class KnowledgeStore
     private static async Task<(long Id, RelationKind Kind, bool AllowStrength, string Name)?> GetRelationTypeAsync(SqliteConnection c, SqliteTransaction t, string name, CancellationToken token) { await using var q = c.CreateCommand(); q.Transaction = t; q.CommandText = "SELECT id,directionality,allow_strength,canonical_name FROM relation_types WHERE canonical_name=$name OR id IN(SELECT relation_type_id FROM relation_type_aliases WHERE alias=$name)"; q.Parameters.AddWithValue("$name", name); await using var r = await q.ExecuteReaderAsync(token); return await r.ReadAsync(token) ? (r.GetInt64(0), Enum.Parse<RelationKind>(r.GetString(1), true), r.GetBoolean(2), r.GetString(3)) : null; }
     private static async Task<bool> EntitiesExistAsync(SqliteConnection c, SqliteTransaction t, ClaimCandidate x, CancellationToken token) { await using var q = c.CreateCommand(); q.Transaction = t; q.CommandText = "SELECT COUNT(*) FROM entities WHERE id IN($s,$o,$k)"; q.Parameters.AddWithValue("$s", x.SubjectId); q.Parameters.AddWithValue("$o", x.ObjectId); q.Parameters.AddWithValue("$k", x.KnowledgeSubjectId ?? x.SubjectId); var expected = new[] { x.SubjectId, x.ObjectId, x.KnowledgeSubjectId ?? x.SubjectId }.Distinct().Count(); return Convert.ToInt32(await q.ExecuteScalarAsync(token), CultureInfo.InvariantCulture) == expected; }
     private async Task<long> GetOrCreateRelationAsync(SqliteConnection c, SqliteTransaction t, long typeId, RelationKind kind, long subject, long obj, CancellationToken token) { var a = kind == RelationKind.Symmetric ? Math.Min(subject, obj) : subject; var b = kind == RelationKind.Symmetric ? Math.Max(subject, obj) : obj; await using var find = c.CreateCommand(); find.Transaction = t; find.CommandText = kind == RelationKind.Directed ? "SELECT r.id FROM relations r JOIN directed_relations d ON d.relation_id=r.id WHERE r.relation_type_id=$type AND d.subject_id=$a AND d.object_id=$b" : "SELECT r.id FROM relations r JOIN symmetric_relations s ON s.relation_id=r.id WHERE r.relation_type_id=$type AND s.entity_a_id=$a AND s.entity_b_id=$b"; find.Parameters.AddWithValue("$type", typeId); find.Parameters.AddWithValue("$a", a); find.Parameters.AddWithValue("$b", b); var existing = await find.ExecuteScalarAsync(token); if (existing is long id) return id; await using var insert = c.CreateCommand(); insert.Transaction = t; insert.CommandText = "INSERT INTO relations(relation_type_id,relation_kind,created_at) VALUES($type,$kind,$now); SELECT last_insert_rowid();"; insert.Parameters.AddWithValue("$type", typeId); insert.Parameters.AddWithValue("$kind", Lower(kind)); insert.Parameters.AddWithValue("$now", Format(Now())); var relationId = (long)(await insert.ExecuteScalarAsync(token) ?? 0L); await using var edge = c.CreateCommand(); edge.Transaction = t; edge.CommandText = kind == RelationKind.Directed ? "INSERT INTO directed_relations VALUES($id,$a,$b)" : "INSERT INTO symmetric_relations VALUES($id,$a,$b)"; edge.Parameters.AddWithValue("$id", relationId); edge.Parameters.AddWithValue("$a", a); edge.Parameters.AddWithValue("$b", b); await edge.ExecuteNonQueryAsync(token); return relationId; }
-    private async Task<long> InsertSourceAsync(SqliteConnection c, SqliteTransaction t, SourceInput x, CancellationToken token) { await using var q = c.CreateCommand(); q.Transaction = t; q.CommandText = "INSERT INTO sources(source_type,uri,external_id,title,author_entity_id,source_reliability,observed_at,metadata,source_statement_id) VALUES($type,$uri,$external,$title,$author,$reliability,$now,$metadata,$statement); SELECT last_insert_rowid();"; q.Parameters.AddWithValue("$type", x.SourceType); q.Parameters.AddWithValue("$uri", (object?)x.Uri ?? DBNull.Value); q.Parameters.AddWithValue("$external", (object?)x.ExternalId ?? DBNull.Value); q.Parameters.AddWithValue("$title", (object?)x.Title ?? DBNull.Value); q.Parameters.AddWithValue("$author", (object?)x.AuthorEntityId ?? DBNull.Value); q.Parameters.AddWithValue("$reliability", (object?)x.Reliability ?? DBNull.Value); q.Parameters.AddWithValue("$now", Format(Now())); q.Parameters.AddWithValue("$metadata", (object?)x.Metadata ?? DBNull.Value); q.Parameters.AddWithValue("$statement", (object?)x.SourceStatementId ?? DBNull.Value); return (long)(await q.ExecuteScalarAsync(token) ?? 0L); }
+    private async Task<long> InsertSourceAsync(SqliteConnection c, SqliteTransaction t, SourceInput x, CancellationToken token) { ValidateSourceInput(x); await using var q = c.CreateCommand(); q.Transaction = t; q.CommandText = "INSERT INTO sources(source_type,uri,external_id,title,author_entity_id,source_reliability,observed_at,metadata,source_input_id) VALUES($type,$uri,$external,$title,$author,$reliability,$now,$metadata,$input); SELECT last_insert_rowid();"; q.Parameters.AddWithValue("$type", x.SourceType); q.Parameters.AddWithValue("$uri", (object?)NormalizeSourceUri(x.Uri) ?? DBNull.Value); q.Parameters.AddWithValue("$external", (object?)x.ExternalId ?? DBNull.Value); q.Parameters.AddWithValue("$title", (object?)x.Title ?? DBNull.Value); q.Parameters.AddWithValue("$author", (object?)x.AuthorEntityId ?? DBNull.Value); q.Parameters.AddWithValue("$reliability", (object?)x.Reliability ?? DBNull.Value); q.Parameters.AddWithValue("$now", Format(Now())); q.Parameters.AddWithValue("$metadata", (object?)x.Metadata ?? DBNull.Value); q.Parameters.AddWithValue("$input", (object?)x.SourceInputId ?? DBNull.Value); return (long)(await q.ExecuteScalarAsync(token) ?? 0L); }
     private async Task<long> InsertClaimAsync(SqliteConnection c, SqliteTransaction t, long relationId, long? sourceId, ClaimCandidate x, CancellationToken token) { var now = Now(); await using var q = c.CreateCommand(); q.Transaction = t; q.CommandText = "INSERT INTO claims(relation_id,knowledge_subject_id,polarity,claim_confidence,attribution_confidence,strength,assertion_type,source_id,observed_at,valid_from,valid_to,last_confirmed_at,status,created_at,updated_at) VALUES($relation,$knowledge,$polarity,$confidence,$attribution,$strength,$assertion,$source,$observed,$from,$to,$confirmed,'active',$now,$now); SELECT last_insert_rowid();"; q.Parameters.AddWithValue("$relation", relationId); q.Parameters.AddWithValue("$knowledge", (object?)x.KnowledgeSubjectId ?? DBNull.Value); q.Parameters.AddWithValue("$polarity", Lower(x.Polarity)); q.Parameters.AddWithValue("$confidence", x.Confidence); q.Parameters.AddWithValue("$attribution", (object?)x.AttributionConfidence ?? DBNull.Value); q.Parameters.AddWithValue("$strength", (object?)x.Strength ?? DBNull.Value); q.Parameters.AddWithValue("$assertion", x.AssertionType); q.Parameters.AddWithValue("$source", (object?)sourceId ?? DBNull.Value); q.Parameters.AddWithValue("$observed", Format(x.ObservedAt ?? now)); q.Parameters.AddWithValue("$from", x.ValidFrom is null ? DBNull.Value : Format(x.ValidFrom.Value)); q.Parameters.AddWithValue("$to", x.ValidTo is null ? DBNull.Value : Format(x.ValidTo.Value)); q.Parameters.AddWithValue("$confirmed", x.LastConfirmedAt is null ? DBNull.Value : Format(x.LastConfirmedAt.Value)); q.Parameters.AddWithValue("$now", Format(now)); return (long)(await q.ExecuteScalarAsync(token) ?? 0L); }
 
-    private const string QuerySql = "SELECT c.id,r.id,rt.canonical_name,r.relation_kind,COALESCE(d.subject_id,s.entity_a_id),COALESCE(d.object_id,s.entity_b_id),c.polarity,c.claim_confidence,c.attribution_confidence,c.strength,c.knowledge_subject_id,c.source_id,c.assertion_type,c.observed_at,c.valid_from,c.valid_to,c.last_confirmed_at,c.status,src.source_statement_id FROM claims c JOIN relations r ON r.id=c.relation_id JOIN relation_types rt ON rt.id=r.relation_type_id LEFT JOIN sources src ON src.id=c.source_id LEFT JOIN directed_relations d ON d.relation_id=r.id LEFT JOIN symmetric_relations s ON s.relation_id=r.id";
+    private const string QuerySql = "SELECT c.id,r.id,rt.canonical_name,r.relation_kind,COALESCE(d.subject_id,s.entity_a_id),COALESCE(d.object_id,s.entity_b_id),c.polarity,c.claim_confidence,c.attribution_confidence,c.strength,c.knowledge_subject_id,c.source_id,c.assertion_type,c.observed_at,c.valid_from,c.valid_to,c.last_confirmed_at,c.status,src.source_input_id FROM claims c JOIN relations r ON r.id=c.relation_id JOIN relation_types rt ON rt.id=r.relation_type_id LEFT JOIN sources src ON src.id=c.source_id LEFT JOIN directed_relations d ON d.relation_id=r.id LEFT JOIN symmetric_relations s ON s.relation_id=r.id";
     private const string Schema = """
 PRAGMA journal_mode=WAL;
+CREATE TABLE IF NOT EXISTS schema_metadata(key TEXT PRIMARY KEY,value TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS entities(id INTEGER PRIMARY KEY,class_name TEXT NOT NULL,canonical_name TEXT NOT NULL,namespace TEXT NOT NULL DEFAULT 'global',metadata TEXT,created_at TEXT NOT NULL,updated_at TEXT NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_entities_name ON entities(canonical_name);
-CREATE TABLE IF NOT EXISTS statements(id INTEGER PRIMARY KEY REFERENCES entities(id) ON DELETE CASCADE,text TEXT NOT NULL,namespace TEXT NOT NULL DEFAULT 'global',created_at TEXT NOT NULL,updated_at TEXT NOT NULL);
-CREATE INDEX IF NOT EXISTS idx_statements_namespace ON statements(namespace,id);
+CREATE TABLE IF NOT EXISTS knowledge_inputs(id INTEGER PRIMARY KEY,namespace TEXT NOT NULL DEFAULT 'global',created_at TEXT NOT NULL,updated_at TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_knowledge_inputs_namespace ON knowledge_inputs(namespace,id);
+CREATE TABLE IF NOT EXISTS input_terms(input_id INTEGER NOT NULL REFERENCES knowledge_inputs(id) ON DELETE CASCADE,term_entity_id INTEGER NOT NULL REFERENCES entities(id),occurrence_count INTEGER NOT NULL CHECK(occurrence_count>0),PRIMARY KEY(input_id,term_entity_id));
+CREATE INDEX IF NOT EXISTS idx_input_terms_entity ON input_terms(term_entity_id,input_id);
 CREATE TABLE IF NOT EXISTS relation_types(id INTEGER PRIMARY KEY,canonical_name TEXT NOT NULL UNIQUE,category TEXT NOT NULL,directionality TEXT NOT NULL CHECK(directionality IN('directed','symmetric')),allow_strength INTEGER NOT NULL DEFAULT 0,inverse_name TEXT,freshness_policy TEXT NOT NULL CHECK(freshness_policy IN('permanent','periodic','volatile')),refresh_after_seconds INTEGER,description TEXT,created_at TEXT NOT NULL,updated_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS relation_type_aliases(relation_type_id INTEGER NOT NULL REFERENCES relation_types(id),alias TEXT NOT NULL UNIQUE,PRIMARY KEY(relation_type_id,alias));
 CREATE TABLE IF NOT EXISTS relations(id INTEGER PRIMARY KEY,relation_type_id INTEGER NOT NULL REFERENCES relation_types(id),relation_kind TEXT NOT NULL CHECK(relation_kind IN('directed','symmetric')),created_at TEXT NOT NULL);
@@ -683,9 +633,9 @@ CREATE TABLE IF NOT EXISTS directed_relations(relation_id INTEGER PRIMARY KEY RE
 CREATE INDEX IF NOT EXISTS idx_directed_subject ON directed_relations(subject_id); CREATE INDEX IF NOT EXISTS idx_directed_object ON directed_relations(object_id);
 CREATE TABLE IF NOT EXISTS symmetric_relations(relation_id INTEGER PRIMARY KEY REFERENCES relations(id),entity_a_id INTEGER NOT NULL REFERENCES entities(id),entity_b_id INTEGER NOT NULL REFERENCES entities(id),CHECK(entity_a_id<entity_b_id),UNIQUE(entity_a_id,entity_b_id,relation_id));
 CREATE INDEX IF NOT EXISTS idx_symmetric_a ON symmetric_relations(entity_a_id); CREATE INDEX IF NOT EXISTS idx_symmetric_b ON symmetric_relations(entity_b_id);
-CREATE TABLE IF NOT EXISTS sources(id INTEGER PRIMARY KEY,source_type TEXT NOT NULL,uri TEXT,external_id TEXT,title TEXT,author_entity_id INTEGER REFERENCES entities(id),source_reliability REAL CHECK(source_reliability BETWEEN 0 AND 1),observed_at TEXT NOT NULL,metadata TEXT);
+CREATE TABLE IF NOT EXISTS sources(id INTEGER PRIMARY KEY,source_type TEXT NOT NULL,uri TEXT,external_id TEXT,title TEXT,author_entity_id INTEGER REFERENCES entities(id),source_reliability REAL CHECK(source_reliability BETWEEN 0 AND 1),observed_at TEXT NOT NULL,metadata TEXT,source_input_id INTEGER REFERENCES knowledge_inputs(id));
 CREATE TABLE IF NOT EXISTS claims(id INTEGER PRIMARY KEY,relation_id INTEGER NOT NULL REFERENCES relations(id),knowledge_subject_id INTEGER REFERENCES entities(id),polarity TEXT NOT NULL CHECK(polarity IN('positive','negative')),claim_confidence REAL NOT NULL CHECK(claim_confidence BETWEEN 0 AND 1),attribution_confidence REAL CHECK(attribution_confidence BETWEEN 0 AND 1),strength REAL CHECK(strength BETWEEN 0 AND 1),assertion_type TEXT NOT NULL,source_id INTEGER REFERENCES sources(id),observed_at TEXT NOT NULL,valid_from TEXT,valid_to TEXT,last_confirmed_at TEXT,status TEXT NOT NULL CHECK(status IN('active','retracted','stale')),created_at TEXT NOT NULL,updated_at TEXT NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_claim_relation ON claims(relation_id); CREATE INDEX IF NOT EXISTS idx_claim_subject ON claims(knowledge_subject_id); CREATE INDEX IF NOT EXISTS idx_claim_temporal ON claims(valid_from,valid_to);
-CREATE TABLE IF NOT EXISTS events(entity_id INTEGER PRIMARY KEY REFERENCES entities(id),actor_id INTEGER REFERENCES entities(id),occurred_at TEXT NOT NULL,action TEXT NOT NULL,object_id INTEGER REFERENCES entities(id),object_value TEXT,ends_at TEXT,source_statement_id INTEGER REFERENCES entities(id));
+CREATE TABLE IF NOT EXISTS events(entity_id INTEGER PRIMARY KEY REFERENCES entities(id),actor_id INTEGER REFERENCES entities(id),occurred_at TEXT NOT NULL,action TEXT NOT NULL,object_id INTEGER REFERENCES entities(id),object_value TEXT,ends_at TEXT,source_input_id INTEGER REFERENCES knowledge_inputs(id));
 """;
 }

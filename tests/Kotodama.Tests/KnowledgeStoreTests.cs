@@ -42,26 +42,8 @@ public sealed class KnowledgeStoreTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task QueryClaims_WhenAbsent_ReturnsUnknownAsEmpty()
-    {
+    public async Task QueryClaims_WhenAbsent_ReturnsUnknownAsEmpty() =>
         (await _store.QueryClaimsAsync()).Should().BeEmpty();
-    }
-
-    [Fact]
-    public async Task RememberKnowledge_WhenTextIsNew_StoresStructuredStatement()
-    {
-        var result = await _store.RememberKnowledgeAsync(new("定例バックアップは毎週金曜日の18時に実行します。"));
-        var statement = await _store.GetStatementAsync(result.StatementId);
-        var claims = await _store.QueryClaimsAsync(result.SubjectId, "remembers");
-
-        result.Ok.Should().BeTrue();
-        result.Status.Should().Be("stored");
-        result.CreatedEntities.Should().Be(1);
-        result.CreatedRelationType.Should().BeTrue();
-        statement.Should().NotBeNull();
-        statement!.Text.Should().Be("定例バックアップは毎週金曜日の18時に実行します。");
-        claims.Should().ContainSingle(x => x.ClaimId == result.ClaimId && x.AssertionType == "remembered_text");
-    }
 
     [Theory]
     [InlineData("Kotodamaは文章をEntityへ保存します。", "Entity")]
@@ -69,175 +51,21 @@ public sealed class KnowledgeStoreTests : IAsyncLifetime
     [InlineData("This canonical name contains far too many separate words to be one atomic entity", "Entity")]
     [InlineData("保存原文", "Statement")]
     [InlineData("statement:1", "StatementRef")]
-    public async Task CreateEntity_WhenNameIsNotAtomic_IsRejected(string name, string className)
-    {
-        await _store.Invoking(x => x.CreateEntityAsync(new(name, className)))
-            .Should().ThrowAsync<ArgumentException>();
-    }
+    public async Task CreateEntity_WhenNameIsNotAtomic_IsRejected(string name, string className) =>
+        await _store.Invoking(x => x.CreateEntityAsync(new(name, className))).Should().ThrowAsync<ArgumentException>();
 
     [Fact]
     public async Task CreateEntity_WhenNameIsProperNameWithNoParticleClause_IsAccepted()
     {
         var entity = await _store.CreateEntityAsync(new("進撃の巨人", "CreativeWork"));
-
         entity.CanonicalName.Should().Be("進撃の巨人");
     }
 
     [Fact]
-    public async Task Initialize_WhenLegacyStatementEntityExists_MovesTextOutOfEntity()
+    public async Task RememberKnowledge_WhenProtocol1InputIsUsed_ReturnsCompatibilityError()
     {
-        var legacyPath = Path.Combine(Path.GetTempPath(), $"kotodama-legacy-{Guid.NewGuid():N}.db");
-        try
-        {
-            await using (var connection = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={legacyPath}"))
-            {
-                await connection.OpenAsync();
-                await using var command = connection.CreateCommand();
-                command.CommandText = """
-                    CREATE TABLE entities(id INTEGER PRIMARY KEY,class_name TEXT NOT NULL,canonical_name TEXT NOT NULL,namespace TEXT NOT NULL,metadata TEXT,created_at TEXT NOT NULL,updated_at TEXT NOT NULL);
-                    INSERT INTO entities VALUES(7,'Statement','Kotodamaは原文を保存します。','global',NULL,'2026-09-01T00:00:00.0000000+00:00','2026-09-01T00:00:00.0000000+00:00');
-                    """;
-                await command.ExecuteNonQueryAsync();
-            }
-
-            var migrated = new KnowledgeStore(legacyPath, TimeProvider.System);
-            await migrated.InitializeAsync();
-
-            (await migrated.GetStatementAsync(7))!.Text.Should().Be("Kotodamaは原文を保存します。");
-            var reference = await migrated.GetEntityAsync(7);
-            reference!.ClassName.Should().Be("StatementRef");
-            reference.CanonicalName.Should().Be("statement:7");
-            (await migrated.SearchEntitiesAsync("Kotodamaは原文を保存します。", includeRelated: false)).Should().BeEmpty();
-            await using var verified = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={legacyPath};Foreign Keys=True");
-            await verified.OpenAsync();
-            await using var foreignKeys = verified.CreateCommand();
-            foreignKeys.CommandText = "SELECT COUNT(*) FROM pragma_foreign_key_check";
-            Convert.ToInt32(await foreignKeys.ExecuteScalarAsync()).Should().Be(0);
-        }
-        finally
-        {
-            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
-            if (File.Exists(legacyPath)) File.Delete(legacyPath);
-        }
-    }
-
-    [Fact]
-    public async Task Initialize_WhenDescriptiveEntityExists_MovesTextOutOfEntity()
-    {
-        var legacyPath = Path.Combine(Path.GetTempPath(), $"kotodama-descriptive-{Guid.NewGuid():N}.db");
-        const string description = "Claude DesktopでのUse Kotodama knowledge選択によるuse_kotodama_text添付";
-        try
-        {
-            await using (var connection = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={legacyPath}"))
-            {
-                await connection.OpenAsync();
-                await using var command = connection.CreateCommand();
-                command.CommandText = """
-                    CREATE TABLE entities(id INTEGER PRIMARY KEY,class_name TEXT NOT NULL,canonical_name TEXT NOT NULL,namespace TEXT NOT NULL,metadata TEXT,created_at TEXT NOT NULL,updated_at TEXT NOT NULL);
-                    INSERT INTO entities VALUES(187,'SoftwareCapability',$description,'Kotodama',NULL,'2026-09-05T20:48:00.0000000+00:00','2026-09-05T20:48:00.0000000+00:00');
-                    """;
-                command.Parameters.AddWithValue("$description", description);
-                await command.ExecuteNonQueryAsync();
-            }
-
-            var migrated = new KnowledgeStore(legacyPath, TimeProvider.System);
-            await migrated.InitializeAsync();
-
-            (await migrated.GetStatementAsync(187))!.Text.Should().Be(description);
-            var reference = await migrated.GetEntityAsync(187);
-            reference!.ClassName.Should().Be("StatementRef");
-            reference.CanonicalName.Should().Be("statement:187");
-            (await migrated.SearchEntitiesAsync(description, includeRelated: false)).Should().BeEmpty();
-        }
-        finally
-        {
-            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
-            if (File.Exists(legacyPath)) File.Delete(legacyPath);
-        }
-    }
-
-    [Fact]
-    public async Task RememberKnowledge_WhenActiveTextAlreadyExists_DoesNotDuplicateClaim()
-    {
-        var first = await _store.RememberKnowledgeAsync(new("同じ知識"));
-        var second = await _store.RememberKnowledgeAsync(new("  同じ知識  "));
-        var claims = await _store.QueryClaimsAsync(first.SubjectId, "remembers");
-
-        second.Status.Should().Be("already_stored");
-        second.ClaimId.Should().Be(first.ClaimId);
-        second.CreatedEntities.Should().Be(0);
-        second.CreatedRelationType.Should().BeFalse();
-        claims.Should().ContainSingle();
-    }
-
-    [Fact]
-    public async Task RememberKnowledge_WhenEventIsProvided_StoresQueryableStructureAndSourceStatement()
-    {
-        var startsAt = DateTimeOffset.Parse("2026-09-01T00:00:00+09:00");
-        var endsAt = DateTimeOffset.Parse("2026-09-07T00:00:00+09:00");
-        var input = new RememberKnowledgeInput(
-            "今週、部長が福岡に来る",
-            Event: new("部長", "visit", "福岡", startsAt, endsAt));
-
-        var remembered = await _store.RememberKnowledgeAsync(input);
-        var events = await _store.QueryEventsAsync(actor: "部長", from: startsAt, to: endsAt);
-
-        remembered.EventId.Should().NotBeNull();
-        events.Should().ContainSingle();
-        events[0].Actor.Should().Be("部長");
-        events[0].Place.Should().Be("福岡");
-        events[0].Action.Should().Be("visit");
-        events[0].SourceStatementId.Should().Be(remembered.StatementId);
-        events[0].SourceStatement.Should().Be(input.Text);
-    }
-
-    [Fact]
-    public async Task RememberKnowledge_WhenExistingTextIsEnriched_AddsOneEventWithoutDuplicatingClaim()
-    {
-        var text = "今週、部長が福岡に来る";
-        var first = await _store.RememberKnowledgeAsync(new(text));
-        var structured = new RememberedEventInput(
-            "部長",
-            "visit",
-            "福岡",
-            DateTimeOffset.Parse("2026-09-01T00:00:00+09:00"),
-            DateTimeOffset.Parse("2026-09-07T00:00:00+09:00"));
-
-        var second = await _store.RememberKnowledgeAsync(new(text, Event: structured));
-        var third = await _store.RememberKnowledgeAsync(new(text, Event: structured));
-        var events = await _store.QueryEventsAsync(actor: "部長");
-
-        second.Status.Should().Be("already_stored");
-        second.ClaimId.Should().Be(first.ClaimId);
-        second.EventId.Should().NotBeNull();
-        third.EventId.Should().Be(second.EventId);
-        events.Should().ContainSingle();
-    }
-
-    [Fact]
-    public async Task QueryEvents_WhenQuestionTermsDoNotMatchStatement_FindsByActorAndPeriod()
-    {
-        var startsAt = DateTimeOffset.Parse("2026-09-01T00:00:00+09:00");
-        var endsAt = DateTimeOffset.Parse("2026-09-07T00:00:00+09:00");
-        await _store.RememberKnowledgeAsync(new(
-            "今週、部長が福岡に来る",
-            Event: new("部長", "visit", "福岡", startsAt, endsAt)));
-
-        var result = await _store.QueryEventsAsync(
-            actor: "部長",
-            from: DateTimeOffset.Parse("2026-09-03T00:00:00+09:00"),
-            to: DateTimeOffset.Parse("2026-09-04T00:00:00+09:00"));
-
-        result.Should().ContainSingle(x => x.Place == "福岡");
-    }
-
-    [Fact]
-    public async Task RememberKnowledge_WhenInputIsInvalid_DoesNotCreateRows()
-    {
-        var action = () => _store.RememberKnowledgeAsync(new("invalid", Confidence: 2));
-
-        await action.Should().ThrowAsync<ArgumentOutOfRangeException>();
-        (await _store.SearchEntitiesAsync(string.Empty)).Should().BeEmpty();
+        var action = () => _store.RememberKnowledgeAsync(new("legacy input"));
+        await action.Should().ThrowAsync<InvalidOperationException>().WithMessage("*protocol_incompatible*");
         (await _store.QueryClaimsAsync()).Should().BeEmpty();
     }
 
@@ -264,114 +92,14 @@ public sealed class KnowledgeStoreTests : IAsyncLifetime
 
         var result = await store.RunDreamAsync();
         var claims = await store.QueryClaimsAsync(a.Id, includeStale: true);
-
         result.Examined.Should().Be(2);
         result.MarkedStale.Should().Be(1);
         claims.Count(x => x.Status == ClaimStatus.Stale).Should().Be(1);
         claims.Count(x => x.Status == ClaimStatus.Active).Should().Be(1);
     }
 
-    [Fact]
-    public async Task RunDream_WhenRememberedKnowledgeAges_ReducesConfidenceGradually()
-    {
-        var now = DateTimeOffset.Parse("2026-08-25T00:00:00Z");
-        var time = new MutableTimeProvider(now);
-        var store = new KnowledgeStore(_path, time, DreamTempStore.Memory);
-        var remembered = await store.RememberKnowledgeAsync(new("徐々に薄れる知識"));
-        time.Advance(TimeSpan.FromSeconds(KnowledgeStore.RememberRefreshAfterSeconds + 1));
-
-        var first = await store.RunDreamAsync();
-        var claim = (await store.QueryClaimsAsync(remembered.SubjectId, "remembers")).Single();
-        var second = await store.RunDreamAsync();
-
-        first.ReducedConfidence.Should().Be(1);
-        first.MarkedStale.Should().Be(0);
-        claim.Confidence.Should().BeApproximately(KnowledgeStore.RememberDecayFactor, 0.000001);
-        claim.Status.Should().Be(ClaimStatus.Active);
-        second.ReducedConfidence.Should().Be(0);
-    }
-
-    [Fact]
-    public async Task RunDream_WhenRememberedKnowledgeKeepsAging_EventuallyMarksStaleAndHidesByDefault()
-    {
-        var now = DateTimeOffset.Parse("2026-08-25T00:00:00Z");
-        var time = new MutableTimeProvider(now);
-        var store = new KnowledgeStore(_path, time, DreamTempStore.Memory);
-        var remembered = await store.RememberKnowledgeAsync(new("忘却対象の知識"));
-
-        for (var index = 0; index < 8; index++)
-        {
-            time.Advance(TimeSpan.FromSeconds(KnowledgeStore.RememberRefreshAfterSeconds + 1));
-            await store.RunDreamAsync();
-        }
-
-        (await store.QueryClaimsAsync(remembered.SubjectId, "remembers")).Should().BeEmpty();
-        var stale = (await store.QueryClaimsAsync(remembered.SubjectId, "remembers", includeStale: true)).Single();
-        stale.Status.Should().Be(ClaimStatus.Stale);
-        stale.Confidence.Should().BeLessThan(KnowledgeStore.RememberStaleThreshold);
-    }
-
-    [Fact]
-    public async Task RememberKnowledge_WhenAgedKnowledgeIsRepeated_RestoresConfidenceAndConfirmation()
-    {
-        var now = DateTimeOffset.Parse("2026-08-25T00:00:00Z");
-        var time = new MutableTimeProvider(now);
-        var store = new KnowledgeStore(_path, time, DreamTempStore.Memory);
-        var first = await store.RememberKnowledgeAsync(new("再確認する知識"));
-        for (var index = 0; index < 8; index++)
-        {
-            time.Advance(TimeSpan.FromSeconds(KnowledgeStore.RememberRefreshAfterSeconds + 1));
-            await store.RunDreamAsync();
-        }
-
-        (await store.QueryClaimsAsync(first.SubjectId, "remembers")).Should().BeEmpty();
-        time.Advance(TimeSpan.FromDays(1));
-
-        var repeated = await store.RememberKnowledgeAsync(new("再確認する知識"));
-        var claim = (await store.QueryClaimsAsync(first.SubjectId, "remembers")).Single();
-
-        repeated.Status.Should().Be("already_stored");
-        repeated.ClaimId.Should().Be(first.ClaimId);
-        claim.Confidence.Should().Be(1);
-        claim.LastConfirmedAt.Should().Be(time.GetUtcNow());
-    }
-
-    [Fact]
-    public async Task Initialize_WhenLegacyRememberTypeIsPermanent_MigratesToPeriodicDecay()
-    {
-        await _store.RememberKnowledgeAsync(new("移行対象の知識"));
-        var connectionString = new Microsoft.Data.Sqlite.SqliteConnectionStringBuilder { DataSource = _path }.ToString();
-        await using (var connection = new Microsoft.Data.Sqlite.SqliteConnection(connectionString))
-        {
-            await connection.OpenAsync();
-            await using var update = connection.CreateCommand();
-            update.CommandText = "UPDATE relation_types SET freshness_policy='permanent',refresh_after_seconds=NULL WHERE canonical_name='remembers'";
-            await update.ExecuteNonQueryAsync();
-        }
-
-        await _store.InitializeAsync();
-
-        await using var migratedConnection = new Microsoft.Data.Sqlite.SqliteConnection(connectionString);
-        await migratedConnection.OpenAsync();
-        await using var query = migratedConnection.CreateCommand();
-        query.CommandText = "SELECT freshness_policy,refresh_after_seconds FROM relation_types WHERE canonical_name='remembers'";
-        await using var reader = await query.ExecuteReaderAsync();
-        (await reader.ReadAsync()).Should().BeTrue();
-        reader.GetString(0).Should().Be("periodic");
-        reader.GetInt64(1).Should().Be(KnowledgeStore.RememberRefreshAfterSeconds);
-    }
-
     private sealed class FixedTimeProvider(DateTimeOffset now) : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => now;
-    }
-
-    private sealed class MutableTimeProvider(DateTimeOffset now) : TimeProvider
-    {
-        private DateTimeOffset _now = now;
-
-        public override DateTimeOffset GetUtcNow() => _now;
-
-        public void Advance(TimeSpan duration) => _now = _now.Add(duration);
     }
 }

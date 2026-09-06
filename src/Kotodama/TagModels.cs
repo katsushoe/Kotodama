@@ -4,15 +4,15 @@ namespace Kotodama;
 public sealed record TagRecord(long Id, string Name, string Namespace, IReadOnlyList<string> Aliases, long? MergedIntoId);
 
 /// <summary>対象へ付与されたタグと由来です。</summary>
-public sealed record TagAssignment(long TagId, string Name, string Origin, long? SourceStatementId);
+public sealed record TagAssignment(long TagId, string Name, string Origin, long? SourceInputId);
 
 /// <summary>タグ検索条件です。名前・IDは解決後に重複排除します。</summary>
 public sealed record TagQueryInput(IReadOnlyList<string>? Tags = null, IReadOnlyList<long>? TagIds = null,
     string TagMatch = "any", string Namespace = "global", int Limit = 50, long AfterId = 0,
     bool IncludeRetracted = false, bool IncludeStale = false, DateTimeOffset? ValidAt = null);
 
-/// <summary>保存文のタグ検索結果です。</summary>
-public sealed record TaggedStatement(StatementRecord Statement, IReadOnlyList<TagAssignment> Tags);
+/// <summary>本文を持たない知識入力のタグ検索結果です。</summary>
+public sealed record TaggedKnowledgeInput(KnowledgeInputRecord Input, IReadOnlyList<TagAssignment> Tags);
 
 /// <summary>Claimのタグ検索結果です。</summary>
 public sealed record TaggedClaim(ClaimRecord Claim, IReadOnlyList<TagAssignment> Tags);

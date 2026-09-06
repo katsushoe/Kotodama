@@ -19,15 +19,15 @@ public sealed partial class KnowledgeStore
                 tag_id INTEGER NOT NULL REFERENCES tags(id), PRIMARY KEY(namespace,normalized_name));
             CREATE INDEX IF NOT EXISTS idx_tag_names_id ON tag_names(tag_id);
             CREATE INDEX IF NOT EXISTS idx_tags_namespace ON tags(namespace,id);
-            CREATE TABLE IF NOT EXISTS statement_tags(
-                statement_id INTEGER NOT NULL REFERENCES entities(id) ON DELETE CASCADE,
+            CREATE TABLE IF NOT EXISTS input_tags(
+                input_id INTEGER NOT NULL REFERENCES knowledge_inputs(id) ON DELETE CASCADE,
                 tag_id INTEGER NOT NULL REFERENCES tags(id), origin TEXT NOT NULL CHECK(origin IN('remember','manual')),
-                PRIMARY KEY(statement_id,tag_id,origin));
-            CREATE INDEX IF NOT EXISTS idx_statement_tags_tag ON statement_tags(tag_id,statement_id);
+                PRIMARY KEY(input_id,tag_id,origin));
+            CREATE INDEX IF NOT EXISTS idx_input_tags_tag ON input_tags(tag_id,input_id);
             CREATE TABLE IF NOT EXISTS claim_tags(
                 claim_id INTEGER NOT NULL REFERENCES claims(id) ON DELETE CASCADE,
                 tag_id INTEGER NOT NULL REFERENCES tags(id), origin TEXT NOT NULL CHECK(origin IN('inherited','manual')),
-                source_statement_id INTEGER REFERENCES entities(id), PRIMARY KEY(claim_id,tag_id,origin));
+                source_input_id INTEGER REFERENCES knowledge_inputs(id), PRIMARY KEY(claim_id,tag_id,origin));
             CREATE INDEX IF NOT EXISTS idx_claim_tags_tag ON claim_tags(tag_id,claim_id);
             """);
         await command.ExecuteNonQueryAsync(token);
@@ -190,13 +190,13 @@ public sealed partial class KnowledgeStore
         if (source != target)
         {
             await using var command = TagCommand(connection, transaction, """
-                INSERT INTO statement_tags(statement_id,tag_id,origin)
-                    SELECT statement_id,$target,origin FROM statement_tags WHERE tag_id=$source
-                    ON CONFLICT(statement_id,tag_id,origin) DO NOTHING;
-                INSERT INTO claim_tags(claim_id,tag_id,origin,source_statement_id)
-                    SELECT claim_id,$target,origin,source_statement_id FROM claim_tags WHERE tag_id=$source
+                INSERT INTO input_tags(input_id,tag_id,origin)
+                    SELECT input_id,$target,origin FROM input_tags WHERE tag_id=$source
+                    ON CONFLICT(input_id,tag_id,origin) DO NOTHING;
+                INSERT INTO claim_tags(claim_id,tag_id,origin,source_input_id)
+                    SELECT claim_id,$target,origin,source_input_id FROM claim_tags WHERE tag_id=$source
                     ON CONFLICT(claim_id,tag_id,origin) DO NOTHING;
-                DELETE FROM statement_tags WHERE tag_id=$source;
+                DELETE FROM input_tags WHERE tag_id=$source;
                 DELETE FROM claim_tags WHERE tag_id=$source;
                 UPDATE tag_names SET tag_id=$target WHERE tag_id=$source;
                 UPDATE tags SET merged_into_id=$target WHERE id=$source OR merged_into_id=$source;
@@ -215,21 +215,22 @@ public sealed partial class KnowledgeStore
         foreach (var name in NormalizeTagNames(names))
         {
             var id = await GetOrCreateTagAsync(connection, transaction, name, entityNamespace, token);
-            changed |= await InsertTagAssignmentAsync(connection, transaction, "statement", result.StatementId, id, "remember", null, token);
-            foreach (var claimId in result.ClaimIds.Append(result.ClaimId).Distinct())
-                changed |= await InsertTagAssignmentAsync(connection, transaction, "claim", claimId, id, "inherited", result.StatementId, token);
+            changed |= await InsertTagAssignmentAsync(connection, transaction, "input", result.InputId, id, "remember", null, token);
+            var claimIds = result.ClaimId is long primary ? result.ClaimIds.Append(primary) : result.ClaimIds;
+            foreach (var claimId in claimIds.Distinct())
+                changed |= await InsertTagAssignmentAsync(connection, transaction, "claim", claimId, id, "inherited", result.InputId, token);
         }
         return changed;
     }
 
     private static async Task<bool> InsertTagAssignmentAsync(SqliteConnection connection, SqliteTransaction transaction,
-        string kind, long targetId, long tagId, string origin, long? statementId, CancellationToken token)
+        string kind, long targetId, long tagId, string origin, long? inputId, CancellationToken token)
     {
-        var sql = kind == "statement"
-            ? "INSERT INTO statement_tags(statement_id,tag_id,origin) VALUES($target,$tag,$origin) ON CONFLICT(statement_id,tag_id,origin) DO NOTHING"
-            : "INSERT INTO claim_tags(claim_id,tag_id,origin,source_statement_id) VALUES($target,$tag,$origin,$statement) ON CONFLICT(claim_id,tag_id,origin) DO NOTHING";
+        var sql = kind == "input"
+            ? "INSERT INTO input_tags(input_id,tag_id,origin) VALUES($target,$tag,$origin) ON CONFLICT(input_id,tag_id,origin) DO NOTHING"
+            : "INSERT INTO claim_tags(claim_id,tag_id,origin,source_input_id) VALUES($target,$tag,$origin,$input) ON CONFLICT(claim_id,tag_id,origin) DO NOTHING";
         await using var command = TagCommand(connection, transaction, sql,
-            ("$target", targetId), ("$tag", tagId), ("$origin", origin), ("$statement", statementId));
+            ("$target", targetId), ("$tag", tagId), ("$origin", origin), ("$input", inputId));
         return await command.ExecuteNonQueryAsync(token) > 0;
     }
 
