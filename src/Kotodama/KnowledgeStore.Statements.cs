@@ -13,6 +13,11 @@ public sealed partial class KnowledgeStore
         "です", "ます", "でした", "ました", "である", "だった", "となる", "している", "される", "できる"
     ];
 
+    private static readonly string[] DescriptivePhraseMarkers =
+    [
+        "での", "による", "により", "における", "として", "ための", "後の", "前の", "時の", "し、", "し，"
+    ];
+
     private async Task InitializeStatementsAsync(SqliteConnection connection, CancellationToken token)
     {
         await using var transaction = connection.BeginTransaction(deferred: false);
@@ -36,7 +41,52 @@ public sealed partial class KnowledgeStore
             """;
         command.Parameters.AddWithValue("$now", Format(Now()));
         await command.ExecuteNonQueryAsync(token);
+        await MigrateDescriptiveEntitiesAsync(connection, transaction, token);
         await transaction.CommitAsync(token);
+    }
+
+    private async Task MigrateDescriptiveEntitiesAsync(SqliteConnection connection, SqliteTransaction transaction, CancellationToken token)
+    {
+        await using var select = connection.CreateCommand();
+        select.Transaction = transaction;
+        select.CommandText = """
+            SELECT id,canonical_name,class_name,namespace,created_at,updated_at
+            FROM entities
+            WHERE class_name<>'StatementRef'
+              AND NOT EXISTS(
+                  SELECT 1 FROM events
+                  WHERE entity_id=entities.id OR actor_id=entities.id OR object_id=entities.id)
+            ORDER BY id
+            """;
+        await using var reader = await select.ExecuteReaderAsync(token);
+        var candidates = new List<(long Id, string Text, string Namespace, string CreatedAt, string UpdatedAt)>();
+        while (await reader.ReadAsync(token))
+        {
+            var text = reader.GetString(1);
+            if (GetAtomicEntityNameError(text, reader.GetString(2)) is not null)
+                candidates.Add((reader.GetInt64(0), text, reader.GetString(3), reader.GetString(4), reader.GetString(5)));
+        }
+        await reader.DisposeAsync();
+
+        foreach (var candidate in candidates)
+        {
+            await using var migrate = connection.CreateCommand();
+            migrate.Transaction = transaction;
+            migrate.CommandText = """
+                INSERT OR IGNORE INTO statements(id,text,namespace,created_at,updated_at)
+                VALUES($id,$text,$namespace,$created,$updated);
+                UPDATE entities
+                SET class_name='StatementRef', canonical_name='statement:' || id, updated_at=$now
+                WHERE id=$id;
+                """;
+            migrate.Parameters.AddWithValue("$id", candidate.Id);
+            migrate.Parameters.AddWithValue("$text", candidate.Text);
+            migrate.Parameters.AddWithValue("$namespace", candidate.Namespace);
+            migrate.Parameters.AddWithValue("$created", candidate.CreatedAt);
+            migrate.Parameters.AddWithValue("$updated", candidate.UpdatedAt);
+            migrate.Parameters.AddWithValue("$now", Format(Now()));
+            await migrate.ExecuteNonQueryAsync(token);
+        }
     }
 
     private static async Task<(long Id, bool Created)> GetOrCreateStatementAsync(SqliteConnection connection, SqliteTransaction transaction,
@@ -94,17 +144,25 @@ public sealed partial class KnowledgeStore
         ArgumentException.ThrowIfNullOrWhiteSpace(canonicalName);
         ArgumentException.ThrowIfNullOrWhiteSpace(className);
         var name = canonicalName.Trim();
-        if (className is "Statement" or "StatementRef")
-            throw new ArgumentException("Statement and StatementRef are reserved; store original text in statement.");
         if (sourceStatement is not null && string.Equals(name, sourceStatement.Trim(), StringComparison.Ordinal))
             throw new ArgumentException("Entity canonicalName must not contain the complete source statement. Split it into atomic terms.");
+        var error = GetAtomicEntityNameError(name, className);
+        if (error is not null) throw new ArgumentException(error);
+    }
+
+    private static string? GetAtomicEntityNameError(string name, string className)
+    {
+        if (className is "Statement" or "StatementRef")
+            return "Statement and StatementRef are reserved; store original text in statement.";
         if (name.Length > MaximumEntityNameLength)
-            throw new ArgumentException($"Entity canonicalName must be at most {MaximumEntityNameLength} characters.");
+            return $"Entity canonicalName must be at most {MaximumEntityNameLength} characters.";
         if (name.IndexOfAny(['\r', '\n']) >= 0 || "。！？!?".Contains(name[^1]))
-            throw new ArgumentException("Entity canonicalName must be an atomic term, not a sentence.");
+            return "Entity canonicalName must be an atomic term, not a sentence.";
         if (name.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Length > MaximumEntityNameWords)
-            throw new ArgumentException($"Entity canonicalName must contain at most {MaximumEntityNameWords} words.");
-        if (SentenceEndings.Any(x => name.EndsWith(x, StringComparison.Ordinal)))
-            throw new ArgumentException("Entity canonicalName must be an atomic term, not a sentence.");
+            return $"Entity canonicalName must contain at most {MaximumEntityNameWords} words.";
+        if (SentenceEndings.Any(x => name.EndsWith(x, StringComparison.Ordinal)) ||
+            DescriptivePhraseMarkers.Any(x => name.Contains(x, StringComparison.Ordinal)))
+            return "Entity canonicalName must be an atomic term, not a sentence or descriptive phrase.";
+        return null;
     }
 }

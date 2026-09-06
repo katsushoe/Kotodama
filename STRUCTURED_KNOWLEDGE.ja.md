@@ -6,7 +6,7 @@
 
 MCP引数は `input` オブジェクトです。`statement`、`entities`、`relations` を必須とします。従来の `input.text` のみの呼び出しはエラーになります。`namespace`、`confidence`、`source`、`observedAt`、`validFrom`、`validTo`、`event` は引き続き利用できます。`statement` は前後の空白を含めて保存します。
 
-- `entities`: `key`、`canonicalName`、任意の `className`（既定Entity）、`entityId`、`metadata`。1件を1つの固有名・名詞・短い名詞句・識別子へ分解します。文章、原文全体、`Statement`/`StatementRef` class、80文字超、空白区切り8語超、改行・文末記号・文末述語を含む名称は拒否します。`key` は要求内で一意です。`entityId` 指定時は名称・class・namespaceが一致する既存Entityを参照します。未指定時は同一名称・class・namespaceを再利用します。既存Entityのmetadataは上書きしません。
+- `entities`: `key`、`canonicalName`、任意の `className`（既定Entity）、`entityId`、`metadata`。1件を1つの固有名・名詞・短い名詞句・識別子へ分解します。文章、原文全体、`Statement`/`StatementRef` class、80文字超、空白区切り8語超、改行・文末記号・文末述語、`での`・`による`等の説明句を含む名称は拒否します。`key` は要求内で一意です。`entityId` 指定時は名称・class・namespaceが一致する既存Entityを参照します。未指定時は同一名称・class・namespaceを再利用します。既存Entityのmetadataは上書きしません。
 - `relations`: `subject`、`object`（entitiesのkey）、`relationType`、任意の `polarity`（Positive）、`confidence`（1）、`strength`。予約語彙以外のRelationTypeは事前に `create_relation_type` で登録します。
 - `tags`: 任意のタグ名配列。保存文と当該保存のClaimへ原子的に付与します。正規化、継承、検索・管理契約は[知識タグ仕様](KNOWLEDGE_TAGS.ja.md)を参照してください。
 - 概念数の目安は2件以上、関係は1件以上です。これは件数の強制ではなく、空配列時の再入力案内です。上限は概念100件・関係200件です。
@@ -45,6 +45,8 @@ MCP引数は `input` オブジェクトです。`statement`、`entities`、`rela
 既存原文に構造を後から追加できます。同じ原文・関係・極性・strength・有効期間の非撤回抽出Claimは再確認し、重複させません。異なる出所の原文や矛盾するClaimは共存します。`status:stored` は新規原文・概念・抽出Claimが保存された場合、`already_stored` はそれらの追加がなかった場合です。既存Eventの扱いは従来どおりです。
 
 原文は`statements`へ保存し、本文をEntityの`canonicalName`へ格納しません。`statementId`は保存原文のIDであり、`get_statement`で取得できます。既存参照との互換性のため内部`StatementRef`が同じIDを保持しますが、通常のEntity検索から除外されます。
+
+旧版で説明句として登録されたEntityは、起動時に同じIDのStatementへ移行し、既存の参照を保持します。Event、actor、objectとして使用中のEntityは自動移行の対象外です。
 
 抽出Claimの `sourceId` はSource IDです。Entity IDとの混用はしません。Source経由の `sourceStatementId` を `query_claims` 等のClaim返却値に含め、抽出元Statementを参照できます。出典URI・信頼度など元のSource属性は保持します。
 

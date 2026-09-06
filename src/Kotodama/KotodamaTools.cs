@@ -46,7 +46,7 @@ public sealed class KotodamaTools(KnowledgeStore store)
     }
 
     [McpServerTool(Name = "get_version"), Description("稼働中のKotodamaバージョンを返します。")]
-    public static object GetVersion() => new { name = "Kotodama", version = "0.15.0" };
+    public static object GetVersion() => new { name = "Kotodama", version = "0.15.1" };
 
     [McpServerTool(Name = "get_entity"), Description("IDでEntityを取得します。存在しない場合はnullです。")]
     public Task<EntityRecord?> GetEntity(long id, CancellationToken cancellationToken) => store.GetEntityAsync(id, cancellationToken);
