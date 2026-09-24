@@ -10,3 +10,4 @@ TestResults/
 coverage/
 .tools/
 artifacts/
+.codex/

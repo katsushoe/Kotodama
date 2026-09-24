@@ -97,23 +97,43 @@ public sealed partial class KnowledgeStore
                 input_id INTEGER NOT NULL REFERENCES knowledge_inputs(id) ON DELETE CASCADE,
                 tag_id INTEGER NOT NULL REFERENCES tags(id), origin TEXT NOT NULL CHECK(origin IN('remember','manual')),
                 PRIMARY KEY(input_id,tag_id,origin));
-            INSERT OR IGNORE INTO input_tags(input_id,tag_id,origin)
-                SELECT statement_id,tag_id,origin FROM statement_tags;
+            """;
+        await command.ExecuteNonQueryAsync(token);
+        if (await HasLegacyColumnAsync(connection, transaction, "statement_tags", "statement_id", token))
+        {
+            command.CommandText = "INSERT OR IGNORE INTO input_tags(input_id,tag_id,origin) SELECT statement_id,tag_id,origin FROM statement_tags";
+            await command.ExecuteNonQueryAsync(token);
+        }
 
+        if (await HasLegacyColumnAsync(connection, transaction, "sources", "source_statement_id", token))
+        {
+            command.CommandText = """
             CREATE TABLE sources_v2(id INTEGER PRIMARY KEY,source_type TEXT NOT NULL,uri TEXT,external_id TEXT,title TEXT,
                 author_entity_id INTEGER REFERENCES entities(id),source_reliability REAL CHECK(source_reliability BETWEEN 0 AND 1),
                 observed_at TEXT NOT NULL,metadata TEXT,source_input_id INTEGER REFERENCES knowledge_inputs(id));
             INSERT INTO sources_v2 SELECT id,source_type,uri,external_id,title,author_entity_id,source_reliability,observed_at,metadata,source_statement_id FROM sources;
             DROP TABLE sources;
             ALTER TABLE sources_v2 RENAME TO sources;
+            """;
+            await command.ExecuteNonQueryAsync(token);
+        }
 
+        if (await HasLegacyColumnAsync(connection, transaction, "events", "source_statement_id", token))
+        {
+            command.CommandText = """
             CREATE TABLE events_v2(entity_id INTEGER PRIMARY KEY REFERENCES entities(id),actor_id INTEGER REFERENCES entities(id),
                 occurred_at TEXT NOT NULL,action TEXT NOT NULL,object_id INTEGER REFERENCES entities(id),object_value TEXT,ends_at TEXT,
                 source_input_id INTEGER REFERENCES knowledge_inputs(id));
             INSERT INTO events_v2 SELECT entity_id,actor_id,occurred_at,action,object_id,object_value,ends_at,source_statement_id FROM events;
             DROP TABLE events;
             ALTER TABLE events_v2 RENAME TO events;
+            """;
+            await command.ExecuteNonQueryAsync(token);
+        }
 
+        if (await HasLegacyColumnAsync(connection, transaction, "claim_tags", "source_statement_id", token))
+        {
+            command.CommandText = """
             CREATE TABLE claim_tags_v2(claim_id INTEGER NOT NULL REFERENCES claims(id) ON DELETE CASCADE,
                 tag_id INTEGER NOT NULL REFERENCES tags(id),origin TEXT NOT NULL CHECK(origin IN('inherited','manual')),
                 source_input_id INTEGER REFERENCES knowledge_inputs(id),PRIMARY KEY(claim_id,tag_id,origin));
@@ -121,7 +141,29 @@ public sealed partial class KnowledgeStore
             DROP TABLE claim_tags;
             ALTER TABLE claim_tags_v2 RENAME TO claim_tags;
             """;
-        await command.ExecuteNonQueryAsync(token);
+            await command.ExecuteNonQueryAsync(token);
+        }
+        else
+        {
+            command.CommandText = """
+                CREATE TABLE IF NOT EXISTS claim_tags(
+                    claim_id INTEGER NOT NULL REFERENCES claims(id) ON DELETE CASCADE,
+                    tag_id INTEGER NOT NULL REFERENCES tags(id),origin TEXT NOT NULL CHECK(origin IN('inherited','manual')),
+                    source_input_id INTEGER REFERENCES knowledge_inputs(id),PRIMARY KEY(claim_id,tag_id,origin));
+                """;
+            await command.ExecuteNonQueryAsync(token);
+        }
+    }
+
+    private static async Task<bool> HasLegacyColumnAsync(SqliteConnection connection, SqliteTransaction transaction,
+        string table, string column, CancellationToken token)
+    {
+        await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = "SELECT EXISTS(SELECT 1 FROM pragma_table_info($table) WHERE name=$column)";
+        command.Parameters.AddWithValue("$table", table);
+        command.Parameters.AddWithValue("$column", column);
+        return Convert.ToInt32(await command.ExecuteScalarAsync(token), CultureInfo.InvariantCulture) != 0;
     }
 
     private static async Task RemoveLegacyStatementGraphAsync(SqliteConnection connection, SqliteTransaction transaction, CancellationToken token)
@@ -141,7 +183,7 @@ public sealed partial class KnowledgeStore
             DELETE FROM relation_types WHERE canonical_name='remembers' AND id NOT IN(SELECT relation_type_id FROM relations);
             DELETE FROM sources WHERE id NOT IN(SELECT source_id FROM claims WHERE source_id IS NOT NULL);
             DELETE FROM entities WHERE class_name IN('Statement','StatementRef');
-            DROP TABLE statement_tags;
+            DROP TABLE IF EXISTS statement_tags;
             DROP TABLE statements;
             """;
         await command.ExecuteNonQueryAsync(token);
