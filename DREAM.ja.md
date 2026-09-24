@@ -1,6 +1,6 @@
 # dream仕様
 
-HTTP常駐モードでは`KOTODAMA_DREAM_INTERVAL_SECONDS`（既定3600秒）ごとに自動実行します。MCP Toolの`run_dream`による手動実行も維持します。stdioモードは短命な接続を想定し、自動実行しません。
+HTTP常駐モードでは`KOTODAMA_DREAM_INTERVAL_SECONDS`（既定3600秒）ごとに自動実行します。MCP Toolの`run_dream`による手動実行も維持します。
 
 dreamはオンラインClaimを直接走査しながら逐次更新せず、接続ローカルの一時テーブルで更新候補を確定してから短いトランザクションで公開します。
 
@@ -42,6 +42,6 @@ SQLiteではテーブル自体をオンラインテーブルと物理交換す�
 
 ## 実行方法
 
-HTTP常駐モードでは、ホスト内のBackground Serviceが`KOTODAMA_DREAM_INTERVAL_SECONDS`（既定3600秒）ごとに実行します。不正値または0以下は既定値として扱います。stdioモードでは自動実行しません。
+HTTP常駐モードでは、ホスト内のBackground Serviceが`KOTODAMA_DREAM_INTERVAL_SECONDS`（既定3600秒）ごとに実行します。不正値または0以下は既定値として扱います。
 
 任意の時点でMCP Toolの`run_dream`を呼び出して手動実行できます。戻り値は評価対象件数`examined`、confidence減衰件数`reducedConfidence`、実際にstaleへ変更した件数`markedStale`、評価日時`evaluatedAt`です。同時実行は安全ですが、不要な競合を避けるため、定期実行元はHTTP常駐ホストだけにすることを推奨します。

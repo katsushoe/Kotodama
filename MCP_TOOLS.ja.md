@@ -1,6 +1,6 @@
 # MCP Tool仕様
 
-Kotodamaはstdio／Streamable HTTP Transportで30個のToolを提供します。プロパティ名はJSONではcamelCaseを使用します。
+KotodamaはStreamable HTTP Transport（`http://127.0.0.1:39280/mcp`）で30個のToolを提供します。プロパティ名はJSONではcamelCaseを使用します。
 
 知識タグの8個のTool、`remember_knowledge.input.tags`、エラー、移行、サービス接続CLIの契約は[知識タグ仕様](KNOWLEDGE_TAGS.ja.md)を参照してください。
 

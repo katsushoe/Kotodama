@@ -6,40 +6,25 @@ using Xunit;
 
 namespace Kotodama.Tests;
 
-public sealed class McpStdioTests : IAsyncLifetime
+public sealed class McpToolWorkflowTests : IAsyncLifetime
 {
-    private readonly string _databasePath = Path.Combine(Path.GetTempPath(), $"kotodama-mcp-{Guid.NewGuid():N}.db");
+    private KotodamaHttpTestServer _server = null!;
     private McpClient _client = null!;
 
     public async Task InitializeAsync()
     {
-        var environment = StdioClientTransportOptions.GetDefaultEnvironmentVariables();
-        environment["KOTODAMA_DB"] = _databasePath;
-        environment["KOTODAMA_DREAM_TEMP_STORE"] = "Memory";
-        var serverAssembly = typeof(KnowledgeStore).Assembly.Location;
-        var transport = new StdioClientTransport(new()
-        {
-            Name = "Kotodama integration test",
-            Command = "dotnet",
-            Arguments = [serverAssembly],
-            WorkingDirectory = Path.GetDirectoryName(serverAssembly),
-            InheritEnvironmentVariables = false,
-            EnvironmentVariables = environment,
-            ShutdownTimeout = TimeSpan.FromMilliseconds(500),
-        });
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(60));
-        _client = await McpClient.CreateAsync(transport, cancellationToken: timeout.Token);
+        _server = KotodamaHttpTestServer.Start(null);
+        _client = await _server.ConnectAsync(null);
     }
 
     public async Task DisposeAsync()
     {
         if (_client is not null) await _client.DisposeAsync();
-        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
-        await DeleteDatabaseFilesAsync();
+        if (_server is not null) await _server.DisposeAsync();
     }
 
     [Fact]
-    public void Stdio_WhenInitialized_ExposesServerIdentityAndCapabilities()
+    public void Initialize_ExposesServerIdentityAndCapabilities()
     {
         _client.ServerInfo.Name.Should().NotBeNullOrWhiteSpace();
         _client.ServerCapabilities.Tools.Should().NotBeNull();
@@ -57,7 +42,7 @@ public sealed class McpStdioTests : IAsyncLifetime
     }
 
     [Fact]
-    public Task Tags_ThroughStdio_PreserveSchemaStateAndErrors() => TagProtocolChecks.VerifyAsync(_client);
+    public Task Tags_ThroughHttp_PreserveSchemaStateAndErrors() => TagProtocolChecks.VerifyAsync(_client);
 
     [Fact]
     public async Task ListPrompts_ReturnsKotodamaGluePrompt()
@@ -95,12 +80,12 @@ public sealed class McpStdioTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task GetVersion_ThroughStdio_ReturnsServerIdentity()
+    public async Task GetVersion_ThroughHttp_ReturnsServerIdentity()
     {
         var result = await _client.CallToolAsync("get_version", cancellationToken: CancellationToken.None);
 
         result.IsError.Should().NotBeTrue();
-        GetResponseJson(result).Should().Contain("Kotodama").And.Contain("0.17.1").And.Contain("protocolVersion");
+        GetResponseJson(result).Should().Contain("Kotodama").And.Contain("0.18.1").And.Contain("protocolVersion");
     }
 
     [Fact]
@@ -118,7 +103,7 @@ public sealed class McpStdioTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task RememberGraph_ThroughStdio_ReturnsPersistedSourceReference()
+    public async Task RememberGraph_ThroughHttp_ReturnsPersistedSourceReference()
     {
         var input = new StructuredKnowledgeInput("MCP graph " + Guid.NewGuid().ToString("N"),
             [new("a", "MCP A"), new("b", "MCP B")], [new("a", "b", "similar_to", Strength: .8)]);
@@ -133,7 +118,7 @@ public sealed class McpStdioTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task ClaimWorkflow_ThroughStdio_PersistsAndQueriesClaim()
+    public async Task ClaimWorkflow_ThroughHttp_PersistsAndQueriesClaim()
     {
         var suffix = Guid.NewGuid().ToString("N");
         var subjectId = await CreateEntityAsync("Subject" + suffix);
@@ -151,7 +136,7 @@ public sealed class McpStdioTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task RememberKnowledge_ThroughStdio_PersistsOnlyUnorderedTerms()
+    public async Task RememberKnowledge_ThroughHttp_PersistsOnlyUnorderedTerms()
     {
         var text = "自然文のバックアップ予定 " + Guid.NewGuid().ToString("N");
 
@@ -176,7 +161,7 @@ public sealed class McpStdioTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task RememberKnowledge_ThroughStdio_PersistsAndQueriesStructuredEvent()
+    public async Task RememberKnowledge_ThroughHttp_PersistsAndQueriesStructuredEvent()
     {
         var suffix = Guid.NewGuid().ToString("N");
         var actor = "部長" + suffix;
@@ -214,7 +199,7 @@ public sealed class McpStdioTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task RunDream_ThroughStdio_MarksExpiredClaimStale()
+    public async Task RunDream_ThroughHttp_MarksExpiredClaimStale()
     {
         var suffix = Guid.NewGuid().ToString("N");
         var subjectId = await CreateEntityAsync("DreamSubject" + suffix);
@@ -231,7 +216,7 @@ public sealed class McpStdioTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task InvalidCandidate_ThroughStdio_ReturnsBusinessRejection()
+    public async Task InvalidCandidate_ThroughHttp_ReturnsBusinessRejection()
     {
         var suffix = Guid.NewGuid().ToString("N");
         var subjectId = await CreateEntityAsync("InvalidSubject" + suffix);
@@ -267,23 +252,5 @@ public sealed class McpStdioTests : IAsyncLifetime
     {
         if (result.StructuredContent is not null) return JsonSerializer.Serialize(result.StructuredContent);
         return result.Content.OfType<TextContentBlock>().Single().Text;
-    }
-
-    private async Task DeleteDatabaseFilesAsync()
-    {
-        foreach (var path in new[] { _databasePath, _databasePath + "-wal", _databasePath + "-shm" })
-        {
-            for (var attempt = 0; attempt < 20 && File.Exists(path); attempt++)
-            {
-                try
-                {
-                    File.Delete(path);
-                }
-                catch (IOException) when (attempt < 19)
-                {
-                    await Task.Delay(100);
-                }
-            }
-        }
     }
 }

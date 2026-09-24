@@ -16,7 +16,7 @@ dotnet test Kotodama.slnx -c Release --no-restore
 dotnet format Kotodama.slnx --verify-no-changes --no-restore
 ```
 
-テストには規則検証、Open World、競合Claim、対称Relation、時間境界、Source、Event、dreamの各格納方式、実並行処理、障害注入、MCP stdio／Streamable HTTP結合を含みます。
+テストには規則検証、Open World、競合Claim、対称Relation、時間境界、Source、Event、dreamの各格納方式、実並行処理、障害注入、MCP Streamable HTTP結合を含みます。
 
 ## MSI生成
 
@@ -28,21 +28,20 @@ dotnet publish src/Kotodama/Kotodama.csproj `
 $publishDir = (Resolve-Path artifacts/publish/win-x64).Path
 .tools/wix build installer/Package.wxs `
   -arch x64 `
-  -d ProductVersion=0.17.1 `
+  -d ProductVersion=0.18.1 `
   -d PublishDir=$publishDir `
-  -o artifacts/release/Kotodama-0.17.1-x64.msi
+  -o artifacts/release/Kotodama-0.18.1-x64.msi
 ```
 
-## Claude Desktop Extension生成
+## Portable ZIP生成
+
+`artifacts/publish/win-x64`の内容をZIPのルートへ格納し、`Kotodama-<version>-win-x64.zip`とします。ZIP内のパス区切りは`/`にしてください。Windows PowerShell 5.1の`System.IO.Compression.ZipFile`は`\`区切りのエントリを作成するため使用しません。
 
 ```powershell
-& desktop-extension/Build-DesktopExtension.ps1 `
-  -OutputDirectory artifacts/release `
-  -Configuration Release `
-  -Runtime win-x64
+python -c "import shutil; shutil.make_archive('artifacts/release/Kotodama-0.18.1-win-x64', 'zip', 'artifacts/publish/win-x64')"
 ```
 
-`artifacts/release/Kotodama-<version>-win-x64.dxt`が生成されます。DXTはZIP互換形式であり、ルートの`manifest.json`と`server/Kotodama.exe`を含みます。生成後はClaude DesktopのExtension Developer画面から実機インストールし、Tool discovery、`use_kotodama` Prompt、DB永続化、Extension更新後のデータ保持を確認します。
+Claude Desktop Extension（DXT）は0.18.0で廃止しました。KotodamaのMCPサーバーはStreamable HTTP専用です。
 
 ## Codexプラグイン検証
 
@@ -60,12 +59,11 @@ $python = "<Codex bundled Python path>"
 - 全テスト合格
 - format検証合格
 - x64 MSI生成
-- Windows x64 DXT生成
+- Portable ZIP生成（パス区切り`/`）
 - Install、Upgrade、Uninstall実機確認
 - Version表示確認
 - MSI SHA-256作成・照合
-- インストール済み実行ファイルとのMCP stdio通信確認
+- インストール済みHTTPサーバーとのMCP通信確認（`tools/Kotodama.HealthCheck`）
 - 既定DBが`C:\Kotodama\data`へ作成されること
 - 利用者データがUpgrade／Uninstallで不用意に削除されないこと
-- Claude DesktopでDXTのInstall、Tool／Prompt discovery、更新、削除を実機確認
 - Codex Plugin／Skill validator合格、Agent登録・削除、MCP Tool呼び出しを確認

@@ -8,9 +8,9 @@ Documentation index: [DOCUMENTS.ja.md](DOCUMENTS.ja.md)
 
 ## Overview
 
-Kotodama combines a local SQLite-backed Knowledge Graph MCP server with client integrations that help AI agents safely register and retrieve durable knowledge from natural conversation. It provides a Codex plugin, skill, curator agent, and hooks; MCP configuration and hooks for Claude Code; and a DXT extension for Claude Desktop. The core server runs over stdio or Streamable HTTP and stores not only relationships between entities, but also who asserted them, their sources, confidence, validity periods, observation and confirmation times, and freshness. Conflicting positive and negative claims coexist instead of overwriting each other, and an absent claim means unknown rather than false.
+Kotodama combines a local SQLite-backed Knowledge Graph MCP server with client integrations that help AI agents safely register and retrieve durable knowledge from natural conversation. It provides a Codex plugin, skill, curator agent, and hooks; and MCP configuration and hooks for Claude Code. The core server runs as a resident Streamable HTTP service and stores not only relationships between entities, but also who asserted them, their sources, confidence, validity periods, observation and confirmation times, and freshness. Conflicting positive and negative claims coexist instead of overwriting each other, and an absent claim means unknown rather than false.
 
-Clients communicate with Kotodama over MCP stdio or opt-in Streamable HTTP to create entities and relation types, propose or retract claims, record events, and query knowledge by entity, relation type, or point in time. For remembered natural-language facts, `dream` reduces confidence to 80% after each unconfirmed 30-day period and marks the Claim `stale` below 0.2. Other expiring Claim types retain the existing direct stale transition. Dream never rewrites a Claim as false or physically deletes it.
+Clients communicate with Kotodama over MCP Streamable HTTP to create entities and relation types, propose or retract claims, record events, and query knowledge by entity, relation type, or point in time. For remembered natural-language facts, `dream` reduces confidence to 80% after each unconfirmed 30-day period and marks the Claim `stale` below 0.2. Other expiring Claim types retain the existing direct stale transition. Dream never rewrites a Claim as false or physically deletes it.
 
 ## What an AI gains from Kotodama
 
@@ -59,14 +59,13 @@ $env:KOTODAMA_DB = "C:\data\kotodama.db"
 dotnet run --project src/Kotodama
 ```
 
-When `KOTODAMA_DB` is omitted, an installed copy creates `kotodama.db` in its `data` directory. Other layouts create it next to the executable. The server uses MCP stdio; logs are written to stderr.
+When `KOTODAMA_DB` is omitted, an installed copy creates `kotodama.db` in its `data` directory. Other layouts create it next to the executable. The server listens on `http://127.0.0.1:39280` by default; logs are written to stderr and the daily log directory. The stdio transport was removed in 0.18.0, and `KOTODAMA_TRANSPORT=stdio` is rejected at startup.
 
 `KOTODAMA_DREAM_TEMP_STORE` selects the dream staging location: `Default`, `Memory`, or `File`. Dream calculates eligible Claim states in a connection-local temporary table, then publishes stale transitions atomically in a short transaction.
 
-To run the stateless Streamable HTTP transport on loopback:
+To choose the loopback URL and require Bearer authentication:
 
 ```powershell
-$env:KOTODAMA_TRANSPORT = "http"
 $env:KOTODAMA_HTTP_URL = "http://127.0.0.1:39280"
 $env:KOTODAMA_HTTP_TOKEN = "a sufficiently long random token"
 dotnet run --project src/Kotodama
@@ -82,7 +81,7 @@ Optional `remember_knowledge.input.tags` atomically tags the text-free input and
 
 `remember_knowledge` requires `input.statement`, `input.entities`, and `input.relations`; every entity must be one proper name, noun, short noun phrase, or identifier. It stores a text-free `knowledge_inputs` row, unordered `input_terms`, concepts, and claims. Structural failure remains unpersisted after every retry. The removed `get_statement` and `query_tagged_statements` calls return a typed Protocol 2 incompatibility result. See the [structured knowledge contract](STRUCTURED_KNOWLEDGE.ja.md) and [design decisions](STRUCTURED_KNOWLEDGE_DESIGN.ja.md).
 
-Administrative tools also support claim reactivation and explicit physical deletion, plus RelationType update and deletion. RelationTypes that are still referenced are not deleted. In HTTP mode, dream runs periodically (3600 seconds by default), daily logs are written under the deployment `logs` directory, and `kotodama backup <destination.db>` creates an online SQLite backup.
+Administrative tools also support claim reactivation and explicit physical deletion, plus RelationType update and deletion. RelationTypes that are still referenced are not deleted. Dream runs periodically (3600 seconds by default), daily logs are written under the deployment `logs` directory, and `kotodama backup <destination.db>` creates an online SQLite backup.
 
 The storage model preserves conflicting positive and negative claims, distinguishes Source from knowledge subject, normalizes symmetric edges, supports temporal querying, and gradually reduces unconfirmed remembered knowledge before excluding it as `stale` from default queries.
 
@@ -90,12 +89,12 @@ The storage model preserves conflicting positive and negative claims, distinguis
 
 ### MSI installer
 
-Download [Kotodama-0.17.1-x64.msi](https://github.com/katsushoe/Kotodama/releases/download/v0.17.1/Kotodama-0.17.1-x64.msi), verify its SHA-256, and run it with administrator privileges:
+Download [Kotodama-0.18.1-x64.msi](https://github.com/katsushoe/Kotodama/releases/download/v0.18.1/Kotodama-0.18.1-x64.msi), verify its SHA-256, and run it with administrator privileges:
 
 ```powershell
-Get-FileHash .\Kotodama-0.17.1-x64.msi -Algorithm SHA256
+Get-FileHash .\Kotodama-0.18.1-x64.msi -Algorithm SHA256
 Start-Process msiexec.exe -Verb RunAs -Wait `
-  -ArgumentList '/i "Kotodama-0.17.1-x64.msi" /norestart'
+  -ArgumentList '/i "Kotodama-0.18.1-x64.msi" /norestart'
 ```
 
 The x64 MSI installs Kotodama under `C:\Kotodama`:
@@ -109,21 +108,19 @@ Configuration, databases, and logs are not included in the MSI. Non-empty data d
 
 ### Portable ZIP
 
-Download [Kotodama-0.17.1-win-x64.zip](https://github.com/katsushoe/Kotodama/releases/download/v0.17.1/Kotodama-0.17.1-win-x64.zip), verify its SHA-256, and extract it to a writable directory:
+Download [Kotodama-0.18.1-win-x64.zip](https://github.com/katsushoe/Kotodama/releases/download/v0.18.1/Kotodama-0.18.1-win-x64.zip), verify its SHA-256, and extract it to a writable directory:
 
 ```powershell
-Get-FileHash .\Kotodama-0.17.1-win-x64.zip -Algorithm SHA256
-Expand-Archive .\Kotodama-0.17.1-win-x64.zip -DestinationPath C:\Tools\Kotodama
+Get-FileHash .\Kotodama-0.18.1-win-x64.zip -Algorithm SHA256
+Expand-Archive .\Kotodama-0.18.1-win-x64.zip -DestinationPath C:\Tools\Kotodama
 & C:\Tools\Kotodama\Kotodama.exe
 ```
 
 The ZIP is self-contained and does not require a separately installed .NET Runtime. It does not register Kotodama with Windows, modify `PATH`, or provide automatic upgrades. Preserve the extracted `data` directory when replacing a version.
 
-### Claude Desktop Extension
+### Claude Desktop Extension (discontinued)
 
-Download `Kotodama-<version>-win-x64.dxt`, then open Claude Desktop and select `Settings > Extensions > Advanced settings > Install Extension...`. Choose a data directory when prompted. Claude Desktop launches the bundled self-contained Kotodama binary as a stdio MCP server.
-
-The extension exposes Kotodama tools, server instructions, and the `use_kotodama` prompt. Regular Claude Desktop does not run the Claude Code hooks or subagents, so automatic capture after every response is not guaranteed. Select the `use_kotodama` prompt when explicit knowledge review is required. Removing the extension does not delete the selected data directory.
+The Claude Desktop Extension (DXT) was discontinued in 0.18.0 together with the stdio transport. If it is installed, disable or remove the Kotodama extension in Claude Desktop under `Settings > Extensions`; an older extension that opens the same database as the MSI service can modify its migrated schema. Claude Code connects to the resident HTTP service.
 
 ### Source distribution
 
@@ -140,4 +137,4 @@ New-Item -ItemType Directory -Force data | Out-Null
 dotnet run --project src\Kotodama -c Release --no-build
 ```
 
-Kotodama uses MCP stdio by default, so a direct launch waits for JSON-RPC input. Set the HTTP environment variables above to run it as a Streamable HTTP server instead.
+A direct launch starts the Streamable HTTP server on `http://127.0.0.1:39280`. Do not run it at the same time as the MSI service, which uses the same port.

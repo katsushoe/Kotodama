@@ -21,16 +21,16 @@ internal static class ClaudeHookCommand
 
     private const string CodexStatePrefix = "kotodama-codex-stop-";
 
-    internal static async Task<int> RunAsync(string clientName, string eventName, TextReader input, TextWriter output, CancellationToken cancellationToken = default)
+    /// <summary>Hook入力をUTF-8のバイト列として解析します。</summary>
+    /// <remarks>Console.InはコンソールのCode Page（日本語WindowsではCP932）で復号するため使用しません。</remarks>
+    internal static async Task<int> RunAsync(string clientName, string eventName, Stream input, TextWriter output, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(clientName);
         ArgumentException.ThrowIfNullOrWhiteSpace(eventName);
         ArgumentNullException.ThrowIfNull(input);
         ArgumentNullException.ThrowIfNull(output);
 
-        using var document = await JsonDocument.ParseAsync(
-            new MemoryStream(System.Text.Encoding.UTF8.GetBytes(await input.ReadToEndAsync(cancellationToken))),
-            cancellationToken: cancellationToken);
+        using var document = await JsonDocument.ParseAsync(input, cancellationToken: cancellationToken);
 
         object result = eventName.ToLowerInvariant() switch
         {
