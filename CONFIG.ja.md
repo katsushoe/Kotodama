@@ -1,6 +1,6 @@
 # 設定
 
-Kotodamaの設定は環境変数で指定します。設定ファイルの自動読み込みはありません。
+Kotodamaの設定は環境変数で指定します。設定ファイルの自動読み込みはありません。KotodamaのMCPサーバーはStreamable HTTP専用です。stdio Transportは0.18.0で廃止しました。
 
 ## 環境変数
 
@@ -10,15 +10,15 @@ Kotodamaの設定は環境変数で指定します。設定ファイルの自動
 | `KOTODAMA_LOG_DIR` | ログディレクトリの絶対または相対パス | 配置により決定 | 日別ログの保存先 |
 | `KOTODAMA_DREAM_TEMP_STORE` | `Default`、`Memory`、`File` | `Default` | dream一時テーブルのSQLite格納方式 |
 | `KOTODAMA_DREAM_INTERVAL_SECONDS` | 1以上の整数 | `3600` | HTTP常駐時のdream実行間隔（秒） |
-| `KOTODAMA_TRANSPORT` | `stdio`、`http` | `stdio` | MCP Transport |
-| `KOTODAMA_HTTP_URL` | loopbackの絶対HTTP／HTTPS URL | なし | HTTPモードの待受URL。HTTPモードでは必須 |
+| `KOTODAMA_TRANSPORT` | `http` | `http` | 互換用。`stdio`は廃止済みのため起動エラー |
+| `KOTODAMA_HTTP_URL` | loopbackの絶対HTTP／HTTPS URL | `http://127.0.0.1:39280` | 待受URL |
 | `KOTODAMA_HTTP_TOKEN` | Bearer token文字列 | なし | 設定時は`/mcp`への全要求でBearer認証を必須化 |
 
 `KOTODAMA_DREAM_TEMP_STORE`は大文字小文字を区別しません。不明な値はエラーにせず`Default`として扱います。
 
-`KOTODAMA_DREAM_INTERVAL_SECONDS`が未設定、不正、0以下の場合は3600秒です。stdioモードでは定期dreamを起動しません。
+`KOTODAMA_DREAM_INTERVAL_SECONDS`が未設定、不正、0以下の場合は3600秒です。
 
-`KOTODAMA_TRANSPORT`は大文字小文字を区別しません。不明な値、HTTPモードでのURL未指定、loopback以外のhost、URL内のpath・query・fragment・userinfoは起動エラーです。MCP endpointは指定URLの`/mcp`です。`KOTODAMA_HTTP_TOKEN`設定時は`Authorization: Bearer <token>`が必要です。tokenはログへ出力しません。認証の有無にかかわらずloopback以外には公開できません。
+`KOTODAMA_TRANSPORT`は大文字小文字を区別しません。`stdio`を含む`http`以外の値、URLとして解釈できない値、loopback以外のhost、URL内のpath・query・fragment・userinfoは起動エラーです。MCP endpointは指定URLの`/mcp`です。`KOTODAMA_HTTP_TOKEN`設定時は`Authorization: Bearer <token>`が必要です。tokenはログへ出力しません。認証の有無にかかわらずloopback以外には公開できません。
 
 ## CLI接続
 
@@ -40,8 +40,6 @@ MSI版では2番目が適用され、`C:\Kotodama\data\kotodama.db`になりま�
 2. 実行ファイルの1階層上に`logs`ディレクトリが存在すれば、そのディレクトリを使用します。
 3. それ以外は実行ファイルと同じディレクトリの`logs`を使用します。
 
-Claude Desktop Extensionは、利用者が指定したデータディレクトリ内の`kotodama.db`と`logs`をそれぞれ`KOTODAMA_DB`と`KOTODAMA_LOG_DIR`へ設定します。
-
 ## 設定例
 
 現在のPowerShellプロセスだけへ設定します。
@@ -53,10 +51,9 @@ $env:KOTODAMA_DREAM_INTERVAL_SECONDS = "3600"
 & "C:\Kotodama\bin\Kotodama.exe"
 ```
 
-Streamable HTTPで起動する例です。
+待受URLとBearer認証を指定して起動する例です。
 
 ```powershell
-$env:KOTODAMA_TRANSPORT = "http"
 $env:KOTODAMA_HTTP_URL = "http://127.0.0.1:39280"
 $env:KOTODAMA_HTTP_TOKEN = "十分に長いランダムなtoken"
 & "C:\Kotodama\bin\Kotodama.exe"

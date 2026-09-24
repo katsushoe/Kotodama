@@ -1,10 +1,10 @@
 # Kotodama
 
-Kotodamaは、時間・認識主体・重みを扱えるSQLite Knowledge Graph MCPサーバーを中核に、Codex／Claude向けプラグイン、Hooks、Agent、DXT拡張を提供するAI知識基盤です。
+Kotodamaは、時間・認識主体・重みを扱えるSQLite Knowledge Graph MCPサーバーを中核に、Codex／Claude Code向けプラグイン、Hooks、Agentを提供するAI知識基盤です。
 
 ## Kotodamaの概要
 
-Kotodamaは、AIエージェントが利用する知識をローカルのSQLiteへ永続化するMCPサーバーと、AIがその知識を自然な会話から安全に登録・検索するためのクライアント連携機能をまとめて提供します。Codexにはプラグイン、Skill、curator Agent、Hooksを、Claude CodeにはMCP設定とHooksを、Claude DesktopにはDXT拡張を提供します。中核のMCPサーバーはstdioまたはStreamable HTTPで動作し、Entity間の関係だけでなく、その関係を誰がどのSourceに基づいて主張したか、確信度、有効期間、観測日時、最終確認日時、鮮度も保持します。
+Kotodamaは、AIエージェントが利用する知識をローカルのSQLiteへ永続化するMCPサーバーと、AIがその知識を自然な会話から安全に登録・検索するためのクライアント連携機能をまとめて提供します。Codexにはプラグイン、Skill、curator Agent、Hooksを、Claude CodeにはMCP設定とHooksを提供します。中核のMCPサーバーはStreamable HTTPで常駐し、Entity間の関係だけでなく、その関係を誰がどのSourceに基づいて主張したか、確信度、有効期間、観測日時、最終確認日時、鮮度も保持します。
 
 同じ関係について肯定と否定、複数のSource、異なる確信度を上書きせず共存させます。検索結果が空であることは「未知」を意味し、「偽」とは断定しません。定期処理`dream`は、自然文から保存した知識が30日間再確認されないごとにconfidenceを80%へ減衰し、0.2未満で`stale`にします。偽への変更や物理削除は行いません。
 
@@ -27,7 +27,7 @@ KotodamaはMCP初期化時にServer Instructionsを返し、`use_kotodama` MCP P
 
 Codex向けには`plugins/kotodama`にMCP接続と`kotodama-knowledge` Skillを含むプラグインを提供します。`configure codex`は`kotodama-curator`カスタムAgentもユーザースコープへ登録し、応答後の知識整理を分離Contextで実行できるようにします。Agentが利用不能な場合は親Agentが同じ確認を行います。
 
-自動登録方式はクライアントごとに異なります。Claude CodeとCodexでは応答完了Hookが、明示的な記憶依頼がない通常の会話も知識候補として確認します。ユーザーの事実記述または識別済みSourceで裏付けられた知識だけを登録し、会話本文や根拠のないAI生成文は保存しません。Claude Desktopは会話Hookを提供しないため、Server Instructionsによるbest effort対応です。
+自動登録方式はクライアントごとに異なります。Claude CodeとCodexでは応答完了Hookが、明示的な記憶依頼がない通常の会話も知識候補として確認します。ユーザーの事実記述または識別済みSourceで裏付けられた知識だけを登録し、会話本文や根拠のないAI生成文は保存しません。
 
 DBへの新規記録が成功した場合、AIは利用者へ`Kotodamaに記録しました`と通知します。既存知識との重複、登録見送り、確認待ち、拒否、失敗では、この成功通知を表示しません。
 
@@ -61,34 +61,32 @@ Claimは明示的な撤回で`active -> retracted`、`dream`で`active -> stale`
 - 情報が存在しない場合はfalseと断定せず、空の検索結果をunknownとして扱います。
 - Claimの有効期間、観測日時、最終確認日時、鮮度状態を保持します。
 - dreamは`remembers` Claimのconfidenceを段階的に減衰し、基準未満で`active`から`stale`へ変更します。
-- stdioとStreamable HTTPによるMCPサーバーとしてProtocol 2のToolを提供します。
+- Streamable HTTPによるMCPサーバーとしてProtocol 2のToolを提供します。stdio Transportは0.18.0で廃止しました。
 - 本文を持たない入力単位と派生Claimへのタグ付与、AND/OR検索、後付け・解除、改名・別名・統合に対応します。[知識タグ仕様](KNOWLEDGE_TAGS.ja.md)を参照してください。
 
 ## MSIインストーラーを使う場合
 
-[Kotodama-0.17.1-x64.msi](https://github.com/katsushoe/Kotodama/releases/download/v0.17.1/Kotodama-0.17.1-x64.msi)をダウンロードし、SHA-256を照合してから管理者権限で実行します。
+[Kotodama-0.18.1-x64.msi](https://github.com/katsushoe/Kotodama/releases/download/v0.18.1/Kotodama-0.18.1-x64.msi)をダウンロードし、SHA-256を照合してから管理者権限で実行します。
 
 ```powershell
-Get-FileHash .\Kotodama-0.17.1-x64.msi -Algorithm SHA256
+Get-FileHash .\Kotodama-0.18.1-x64.msi -Algorithm SHA256
 Start-Process msiexec.exe -Verb RunAs -Wait `
-  -ArgumentList '/i "Kotodama-0.17.1-x64.msi" /norestart'
+  -ArgumentList '/i "Kotodama-0.18.1-x64.msi" /norestart'
 ```
 
 インストール先は`C:\Kotodama`です。Windowsのインストール済みアプリへ登録され、UpgradeとUninstallに対応します。
 
-## Claude Desktop Extensionを使う場合
+## Claude Desktop Extension（廃止）
 
-Windows版の`Kotodama-<version>-win-x64.dxt`を取得し、Claude Desktopの`Settings > Extensions > Advanced settings > Install Extension...`から選択します。インストール時にKotodamaのデータディレクトリを指定してください。Claude DesktopはDXT内のKotodamaをstdio MCPサーバーとして起動します。
-
-DXTはMCP Tool、Server Instructions、`use_kotodama` Promptを提供します。Server Instructionsは、明示的な記憶依頼がない通常の会話でも、直接裏付けられた永続的で再利用可能な事実を検出した場合に`remember_knowledge`を呼ぶよう指示します。ただしClaude DesktopにはClaude Code用Hookとサブエージェントがないため、Tool選択はbest effortであり、自動登録は保証されません。確実に知識登録を検討させる場合は、会話で`use_kotodama` Promptを選択してください。DXTを削除しても、指定したデータディレクトリは削除されません。
+0.18.0でstdio MCPサーバーを廃止したため、Claude Desktop Extension（DXT）の配布を終了しました。導入済みの場合は、Claude Desktopの`Settings > Extensions`でKotodama拡張を無効化または削除してください。旧版の拡張がMSI版と同じDBを開くと、移行済みスキーマを変更するおそれがあります。Claude Codeからは常駐HTTPサーバーへ接続します。
 
 ## ZIP配布を使う場合
 
-[Kotodama-0.17.1-win-x64.zip](https://github.com/katsushoe/Kotodama/releases/download/v0.17.1/Kotodama-0.17.1-win-x64.zip)をダウンロードし、書き込み可能な任意の場所へ展開します。
+[Kotodama-0.18.1-win-x64.zip](https://github.com/katsushoe/Kotodama/releases/download/v0.18.1/Kotodama-0.18.1-win-x64.zip)をダウンロードし、書き込み可能な任意の場所へ展開します。
 
 ```powershell
-Get-FileHash .\Kotodama-0.17.1-win-x64.zip -Algorithm SHA256
-Expand-Archive .\Kotodama-0.17.1-win-x64.zip -DestinationPath C:\Tools\Kotodama
+Get-FileHash .\Kotodama-0.18.1-win-x64.zip -Algorithm SHA256
+Expand-Archive .\Kotodama-0.18.1-win-x64.zip -DestinationPath C:\Tools\Kotodama
 & C:\Tools\Kotodama\Kotodama.exe
 ```
 
@@ -117,12 +115,11 @@ MSI版の実行ファイルは次の場所です。
 C:\Kotodama\bin\Kotodama.exe
 ```
 
-Kotodamaは既定ではMCP stdioサーバーです。通常はMCPクライアントから子プロセスとして起動し、標準入力へJSON-RPCを送り、標準出力から応答を受け取ります。直接起動すると入力待ちになります。
+KotodamaはStreamable HTTP専用のMCPサーバーです。引数なしで起動すると`http://127.0.0.1:39280`で待ち受けます。MSI版はScheduled Taskで常駐起動します。`KOTODAMA_TRANSPORT=stdio`は起動エラーになります。
 
-Streamable HTTPで起動する場合は次のように設定します。
+待受URLとBearer認証を指定する場合は次のように設定します。
 
 ```powershell
-$env:KOTODAMA_TRANSPORT = "http"
 $env:KOTODAMA_HTTP_URL = "http://127.0.0.1:39280"
 $env:KOTODAMA_HTTP_TOKEN = "十分に長いランダムなtoken"
 & "C:\Kotodama\bin\Kotodama.exe"

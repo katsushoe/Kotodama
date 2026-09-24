@@ -13,7 +13,7 @@ namespace Kotodama;
 /// <summary>KotodamaのMCP Hostを構成して実行します。</summary>
 internal static class KotodamaApplication
 {
-    /// <summary>設定されたTransportでKotodamaを実行します。</summary>
+    /// <summary>CLIサブコマンド、またはStreamable HTTPサーバーとしてKotodamaを実行します。</summary>
     internal static Task<int> RunAsync(string[] args)
     {
         if (args.Length > 0 && args[0].Equals("call", StringComparison.OrdinalIgnoreCase))
@@ -65,7 +65,7 @@ internal static class KotodamaApplication
             (args[1].Equals("claude", StringComparison.OrdinalIgnoreCase) ||
              args[1].Equals("codex", StringComparison.OrdinalIgnoreCase)))
         {
-            return ClaudeHookCommand.RunAsync(args[1], args[2], Console.In, Console.Out);
+            return RunHookAsync(args[1], args[2]);
         }
 
         if (args.Length == 2 && args[0].Equals("backup", StringComparison.OrdinalIgnoreCase))
@@ -76,30 +76,22 @@ internal static class KotodamaApplication
         var settings = args.Contains("--http", StringComparer.OrdinalIgnoreCase)
             ? ServerSettings.Parse("http", ServerSettings.DefaultHttpUrl, Environment.GetEnvironmentVariable("KOTODAMA_HTTP_TOKEN"))
             : ServerSettings.FromEnvironment();
-        return settings.Transport == McpTransport.Http ? RunHttpAsync(args, settings) : RunStdioAsync(args);
+        return RunHttpAsync(args, settings);
     }
 
-    private static async Task<int> RunStdioAsync(string[] args)
+    private static async Task<int> RunHookAsync(string clientName, string eventName)
     {
-        var builder = Host.CreateApplicationBuilder(args);
-        ConfigureLogging(builder.Logging);
-        AddCoreServices(builder.Services);
-        builder.Services.AddHostedService<DreamWorker>();
-        AddMcpPrimitives(builder.Services.AddMcpServer().WithStdioServerTransport());
-
-        using var host = builder.Build();
-        await InitializeStoreAsync(host.Services);
-        await host.RunAsync();
-        return 0;
+        await using var input = Console.OpenStandardInput();
+        return await ClaudeHookCommand.RunAsync(clientName, eventName, input, Console.Out);
     }
 
     private static async Task<int> RunHttpAsync(string[] args, ServerSettings settings)
     {
-        var httpUrl = settings.HttpUrl ?? throw new InvalidOperationException("HTTP transport requires KOTODAMA_HTTP_URL.");
         var builder = WebApplication.CreateBuilder(args);
-        builder.WebHost.UseUrls(httpUrl.AbsoluteUri.TrimEnd('/'));
+        builder.WebHost.UseUrls(settings.HttpUrl.AbsoluteUri.TrimEnd('/'));
         ConfigureLogging(builder.Logging);
         AddCoreServices(builder.Services);
+        builder.Services.AddHostedService<DreamWorker>();
         AddMcpPrimitives(builder.Services.AddMcpServer().WithHttpTransport(options => options.Stateless = true));
 
         await using var app = builder.Build();
