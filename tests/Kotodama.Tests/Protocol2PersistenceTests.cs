@@ -95,8 +95,10 @@ public sealed class Protocol2PersistenceTests
         }
     }
 
-    [Fact]
-    public async Task Initialize_MigratesLegacyStatementAndSecurelyRemovesItsText()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Initialize_MigratesLegacyStatementAndSecurelyRemovesItsText(bool hasLegacyTags)
     {
         var path = Path.Combine(Path.GetTempPath(), $"kotodama-migration-{Guid.NewGuid():N}.db");
         const string raw = "旧形式だけに存在する原文_31e6b0";
@@ -116,12 +118,18 @@ public sealed class Protocol2PersistenceTests
                     """;
                 setup.Parameters.AddWithValue("$raw", raw);
                 await setup.ExecuteNonQueryAsync();
+                if (!hasLegacyTags)
+                {
+                    setup.CommandText = "DROP TABLE statement_tags; DROP TABLE claim_tags;";
+                    await setup.ExecuteNonQueryAsync();
+                }
                 setup.CommandText = "PRAGMA journal_mode=WAL";
                 setup.Parameters.Clear();
                 (await setup.ExecuteScalarAsync()).Should().Be("wal");
             }
 
             var store = new KnowledgeStore(path, TimeProvider.System);
+            await store.InitializeAsync();
             await store.InitializeAsync();
             (await store.GetKnowledgeInputAsync(1)).Should().NotBeNull();
             SqliteConnection.ClearAllPools();
@@ -136,6 +144,51 @@ public sealed class Protocol2PersistenceTests
             Convert.ToInt32(await tables.ExecuteScalarAsync()).Should().Be(0);
             tables.CommandText = "SELECT value FROM schema_metadata WHERE key='secure_compaction_completed'";
             (await tables.ExecuteScalarAsync()).Should().Be("1");
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            foreach (var candidate in new[] { path, path + "-wal", path + "-shm" }) File.Delete(candidate);
+        }
+    }
+
+    [Fact]
+    public async Task Initialize_LegacyStatementsWithCurrentReferences_PreservesKnowledgeAcrossRestart()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"kotodama-mixed-migration-{Guid.NewGuid():N}.db");
+        try
+        {
+            var store = new KnowledgeStore(path, TimeProvider.System);
+            await store.InitializeAsync();
+            var saved = await store.RememberStructuredKnowledgeAsync(new("Kotodama supports SQLite",
+                [new("a", "Kotodama"), new("b", "SQLite")], [new("a", "b", "member_of")]));
+            saved.Ok.Should().BeTrue();
+            await using (var db = new SqliteConnection($"Data Source={path}"))
+            {
+                await db.OpenAsync();
+                await using var setup = db.CreateCommand();
+                setup.CommandText = """
+                    CREATE TABLE statements(id INTEGER PRIMARY KEY,text TEXT NOT NULL,namespace TEXT NOT NULL,created_at TEXT NOT NULL,updated_at TEXT NOT NULL);
+                    INSERT INTO statements VALUES(1000,'Legacy migration','global','2026-01-01T00:00:00.0000000+00:00','2026-01-01T00:00:00.0000000+00:00');
+                    """;
+                await setup.ExecuteNonQueryAsync();
+            }
+
+            // Restart releases pooled connections before changing the journal mode.
+            SqliteConnection.ClearAllPools();
+            await store.InitializeAsync();
+            await store.InitializeAsync();
+
+            (await store.GetKnowledgeInputAsync(saved.InputId)).Should().NotBeNull();
+            (await store.GetKnowledgeInputAsync(1000))!.Terms.Should().NotBeEmpty();
+            await using var check = new SqliteConnection($"Data Source={path}");
+            await check.OpenAsync();
+            await using var command = check.CreateCommand();
+            command.CommandText = "PRAGMA foreign_key_check";
+            (await command.ExecuteScalarAsync()).Should().BeNull();
+            command.CommandText = "SELECT COUNT(*) FROM claims WHERE id=$id";
+            command.Parameters.AddWithValue("$id", saved.ClaimIds[0]);
+            Convert.ToInt32(await command.ExecuteScalarAsync()).Should().Be(1);
         }
         finally
         {
