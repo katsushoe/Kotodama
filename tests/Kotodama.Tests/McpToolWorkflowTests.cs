@@ -85,7 +85,7 @@ public sealed class McpToolWorkflowTests : IAsyncLifetime
         var result = await _client.CallToolAsync("get_version", cancellationToken: CancellationToken.None);
 
         result.IsError.Should().NotBeTrue();
-        GetResponseJson(result).Should().Contain("Kotodama").And.Contain("0.18.1").And.Contain("protocolVersion");
+        GetResponseJson(result).Should().Contain("Kotodama").And.Contain("0.19.0").And.Contain("protocolVersion");
     }
 
     [Fact]

@@ -26,6 +26,14 @@
       Execute="immediate"
       Impersonate="yes"
       Return="ignore" />
+    <!-- MsiServiceConfigFailureActionsは信頼性が低いため、異常終了時の再起動はsc.exeで設定します。 -->
+    <CustomAction
+      Id="ConfigureServiceRecovery"
+      Directory="SystemFolder"
+      ExeCommand="&quot;[SystemFolder]sc.exe&quot; failure Kotodama reset= 86400 actions= restart/60000/restart/60000/restart/300000"
+      Execute="deferred"
+      Impersonate="no"
+      Return="check" />
     <CustomAction
       Id="ConfigureClients"
       Directory="BinFolder"
@@ -44,12 +52,14 @@
     <InstallExecuteSequence>
       <Custom Action="StopKotodamaTask" Before="StopKotodamaProcesses" Condition="NOT REMOVE~=&quot;ALL&quot;" />
       <Custom Action="StopKotodamaProcesses" Before="InstallValidate" Condition="NOT REMOVE~=&quot;ALL&quot;" />
+      <Custom Action="ConfigureServiceRecovery" After="InstallServices" Condition="NOT REMOVE~=&quot;ALL&quot;" />
       <Custom Action="ConfigureClients" After="InstallFiles" Condition="NOT REMOVE~=&quot;ALL&quot;" />
       <Custom Action="UnconfigureClients" Before="RemoveFiles" Condition="REMOVE~=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
     </InstallExecuteSequence>
 
     <Feature Id="ProductFeature" Title="Kotodama" Level="1">
       <ComponentGroupRef Id="ApplicationFiles" />
+      <ComponentRef Id="KotodamaService" />
       <ComponentRef Id="ConfigDirectory" />
       <ComponentRef Id="DataDirectory" />
       <ComponentRef Id="LogsDirectory" />
@@ -62,6 +72,22 @@
         Name="Kotodama"
         ComponentGuidGenerationSeed="A4DCFC0C-0F6E-4576-AB66-D4E843DF5DA9">
         <Directory Id="BinFolder" Name="bin">
+          <!-- 0.19.0以降はログオン時Scheduled Taskではなく、自動起動のWindowsサービスで常駐します。 -->
+          <Component Id="KotodamaService" Guid="6E0C7D2B-3F4A-4B8E-9C1D-2A7F5E8B9C30">
+            <File Id="KotodamaExe" Source="$(PublishDir)\Kotodama.exe" KeyPath="yes" />
+            <ServiceInstall
+              Id="KotodamaServiceInstall"
+              Name="Kotodama"
+              DisplayName="Kotodama MCP Server"
+              Description="Kotodama knowledge graph MCP server (Streamable HTTP on http://127.0.0.1:39280/mcp)."
+              Type="ownProcess"
+              Start="auto"
+              ErrorControl="normal"
+              Account="NT AUTHORITY\LocalService"
+              Arguments="--http"
+              Vital="yes" />
+            <ServiceControl Id="KotodamaServiceControl" Name="Kotodama" Start="install" Stop="both" Remove="uninstall" Wait="yes" />
+          </Component>
           <Component Id="PathEnvironment" Guid="960B0AD7-E844-44BC-9BE6-689A6AF93643">
             <Environment Id="PathEnvironmentEntry" Name="PATH" Value="[BinFolder]" Action="set" Part="last" System="yes" />
           </Component>
@@ -85,7 +111,9 @@
     </StandardDirectory>
 
     <ComponentGroup Id="ApplicationFiles" Directory="BinFolder">
-      <Files Include="$(PublishDir)\**" />
+      <Files Include="$(PublishDir)\**">
+        <Exclude Files="$(PublishDir)\Kotodama.exe" />
+      </Files>
     </ComponentGroup>
   </Package>
 </Wix>

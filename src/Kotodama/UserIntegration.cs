@@ -2,10 +2,11 @@ using System.Diagnostics;
 
 namespace Kotodama;
 
-/// <summary>ログオンユーザー向けの常駐起動とMCPクライアント設定を管理します。</summary>
+/// <summary>ログオンユーザー向けのMCPクライアント設定を管理します。常駐起動はMSIが登録するWindowsサービスが担います。</summary>
 internal static class UserIntegration
 {
-    internal const string TaskName = "Kotodama MCP Server";
+    /// <summary>0.18.1以前がログオン時起動に使っていたScheduled Task名です。移行時に削除します。</summary>
+    internal const string LegacyTaskName = "Kotodama MCP Server";
     internal const string McpUrl = ServerSettings.DefaultHttpUrl + ServerSettings.HttpPath;
 
     internal static async Task<int> ConfigureAllAsync(string baseDirectory, CancellationToken cancellationToken = default)
@@ -29,13 +30,12 @@ internal static class UserIntegration
             throw new FileNotFoundException("Kotodama.exe was not found.", executablePath);
         }
 
+        await RemoveLegacyTaskAsync(cancellationToken);
         try
         {
-            await RunRequiredAsync("schtasks.exe", BuildCreateTaskArguments(executablePath), cancellationToken);
             CodexConfig.Update(GetCodexConfigPath(), McpUrl);
             CodexHookConfig.Update(GetCodexHooksPath(), executablePath);
             CodexAgentConfig.Update(GetCodexAgentPath(), GetCodexAgentTemplatePath(baseDirectory));
-            await RunRequiredAsync("schtasks.exe", ["/Run", "/TN", TaskName], cancellationToken);
             return 0;
         }
         catch
@@ -43,7 +43,6 @@ internal static class UserIntegration
             CodexConfig.Remove(GetCodexConfigPath());
             CodexHookConfig.Remove(GetCodexHooksPath());
             CodexAgentConfig.Remove(GetCodexAgentPath());
-            await RunOptionalAsync("schtasks.exe", ["/Delete", "/TN", TaskName, "/F"], cancellationToken);
             throw;
         }
     }
@@ -53,20 +52,16 @@ internal static class UserIntegration
         CodexConfig.Remove(GetCodexConfigPath());
         CodexHookConfig.Remove(GetCodexHooksPath());
         CodexAgentConfig.Remove(GetCodexAgentPath());
-        await RunOptionalAsync("schtasks.exe", ["/End", "/TN", TaskName], cancellationToken);
-        await RunOptionalAsync("schtasks.exe", ["/Delete", "/TN", TaskName, "/F"], cancellationToken);
+        await RemoveLegacyTaskAsync(cancellationToken);
         return 0;
     }
 
-    internal static string[] BuildCreateTaskArguments(string executablePath) =>
-    [
-        "/Create",
-        "/TN", TaskName,
-        "/SC", "ONLOGON",
-        "/TR", $"\"{executablePath}\" --http",
-        "/RL", "LIMITED",
-        "/F",
-    ];
+    /// <summary>旧版のログオン時起動タスクを停止・削除します。存在しない場合は何もしません。</summary>
+    internal static async Task RemoveLegacyTaskAsync(CancellationToken cancellationToken = default)
+    {
+        await RunOptionalAsync("schtasks.exe", ["/End", "/TN", LegacyTaskName], cancellationToken);
+        await RunOptionalAsync("schtasks.exe", ["/Delete", "/TN", LegacyTaskName, "/F"], cancellationToken);
+    }
 
     internal static string GetCodexConfigPath() =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".codex", "config.toml");
@@ -80,13 +75,8 @@ internal static class UserIntegration
     internal static string GetCodexAgentTemplatePath(string baseDirectory) =>
         Path.Combine(baseDirectory, "codex", CodexAgentConfig.FileName);
 
-    private static Task RunRequiredAsync(string fileName, IReadOnlyList<string> arguments, CancellationToken cancellationToken) =>
-        RunAsync(fileName, arguments, true, cancellationToken);
-
-    private static Task RunOptionalAsync(string fileName, IReadOnlyList<string> arguments, CancellationToken cancellationToken) =>
-        RunAsync(fileName, arguments, false, cancellationToken);
-
-    private static async Task RunAsync(string fileName, IReadOnlyList<string> arguments, bool required, CancellationToken cancellationToken)
+    /// <summary>外部コマンドを実行し、起動失敗や非0終了は無視します。</summary>
+    private static async Task RunOptionalAsync(string fileName, IReadOnlyList<string> arguments, CancellationToken cancellationToken)
     {
         var startInfo = new ProcessStartInfo(fileName)
         {
@@ -98,20 +88,12 @@ internal static class UserIntegration
         foreach (var argument in arguments) startInfo.ArgumentList.Add(argument);
 
         using var process = Process.Start(startInfo);
-        if (process is null)
-        {
-            if (required) throw new InvalidOperationException($"Could not start {fileName}.");
-            return;
-        }
+        if (process is null) return;
 
         var outputTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
         var errorTask = process.StandardError.ReadToEndAsync(cancellationToken);
         await process.WaitForExitAsync(cancellationToken);
-        var output = await outputTask;
-        var error = await errorTask;
-        if (required && process.ExitCode != 0)
-        {
-            throw new InvalidOperationException($"{fileName} failed with exit code {process.ExitCode}: {error}{output}".Trim());
-        }
+        await outputTask;
+        await errorTask;
     }
 }

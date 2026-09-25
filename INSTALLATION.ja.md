@@ -4,7 +4,7 @@
 
 - Windows x64
 - 管理者権限
-- 配布物: `Kotodama-0.18.1-x64.msi`
+- 配布物: `Kotodama-0.19.0-x64.msi`
 
 MSIは自己完結型の.NET実行環境を含むため、利用端末へ別途.NET Runtimeを入れる必要はありません。
 
@@ -21,20 +21,22 @@ C:\Kotodama\
 ## Install
 
 ```powershell
-Start-Process msiexec.exe -Verb RunAs -Wait -ArgumentList '/i "Kotodama-0.18.1-x64.msi" /norestart'
+Start-Process msiexec.exe -Verb RunAs -Wait -ArgumentList '/i "Kotodama-0.19.0-x64.msi" /norestart'
 ```
 
-無人Installでは`/qn`を追加します。完了後、Windowsのインストール済みアプリに`Kotodama 0.18.1`が表示されること、`C:\Kotodama\bin\Kotodama.exe`のFile Versionが`0.18.1.0`であること、新しいターミナルで`kotodama`が解決できることを確認します。MSIは`C:\Kotodama\bin`をシステムPATHへ登録し、ログオンユーザーへ`Kotodama MCP Server` Scheduled Task、Codex、インストール済みの場合はClaude Codeの`kotodama` MCP設定とHooksを登録します。Codexには`%USERPROFILE%\.codex\agents\kotodama-curator.toml`も登録します。Codexは初回Hook実行時に信頼確認を表示する場合があります。KotodamaはScheduled Taskからコンソールウィンドウを表示せず起動します。
+無人Installでは`/qn`を追加します。完了後、Windowsのインストール済みアプリに`Kotodama 0.19.0`が表示されること、`C:\Kotodama\bin\Kotodama.exe`のFile Versionが`0.19.0.0`であること、新しいターミナルで`kotodama`が解決できることを確認します。MSIは`C:\Kotodama\bin`をシステムPATHへ登録し、Windowsサービス`Kotodama`を自動起動・`NT AUTHORITY\LocalService`実行で登録して開始します。インストールしたユーザーには、Codex、インストール済みの場合はClaude Codeの`kotodama` MCP設定とHooksを登録します。Codexには`%USERPROFILE%\.codex\agents\kotodama-curator.toml`も登録します。Codexは初回Hook実行時に信頼確認を表示する場合があります。
 
 Codexプラグインの配布元はソースツリーの`plugins\kotodama`です。プラグインはKotodama HTTPサーバーの`http://127.0.0.1:39280/mcp`へ接続するため、MSIまたは`kotodama configure codex`による常駐設定を先に完了してください。導入後は新しいCodex Taskで`kotodama-knowledge` SkillとKotodama MCP Toolが利用可能であることを確認します。
 
-Scheduled Taskは`http://127.0.0.1:39280/mcp`でKotodamaを起動します。CodexまたはClaude Codeを再起動するとStreamable HTTP Toolが利用可能になります。アンインストール時はScheduled Taskと両クライアントの設定を削除します。
+サービスは`http://127.0.0.1:39280/mcp`で待ち受け、ログオン前から起動し、サインアウト後も継続します。異常終了時は自動で再起動します。CodexまたはClaude Codeを再起動するとStreamable HTTP Toolが利用可能になります。アンインストール時はサービスを停止・削除し、両クライアントの設定を削除します。
+
+サービスの実行アカウント`LocalService`は、`C:\Kotodama\data`と`C:\Kotodama\logs`への書き込み権限を必要とします。既定の配置では`C:\`から継承される`Authenticated Users`の変更権限で書き込めます。ACLを制限している環境では、両ディレクトリへ`NT AUTHORITY\LOCAL SERVICE`の変更権限を付与してください。
 
 ## Upgrade
 
 新しいMSIを同じコマンドでInstallします。UpgradeCodeは固定され、Major Upgradeとして旧版を置換します。既存の非空データディレクトリは保持します。Upgrade前にDBをバックアップしてください。
 
-更新時に停止するのは常駐タスクとMSIのインストール先に一致するKotodamaプロセスです。別ディレクトリのportable版を同名だけで停止しません。portable版の更新は個別に行います。
+更新時はサービスを停止し、MSIのインストール先に一致するKotodamaプロセスも停止します。0.18.1以前から更新した場合は、旧版がログオン時起動に使っていた`Kotodama MCP Server` Scheduled Taskを停止・削除します。別ディレクトリのportable版を同名だけで停止しません。portable版の更新は個別に行います。
 
 ## Uninstall
 
@@ -49,7 +51,7 @@ MSIはアプリ本体を削除します。利用者DB等が残っている非空
 ## Hash確認
 
 ```powershell
-Get-FileHash .\Kotodama-0.18.1-x64.msi -Algorithm SHA256
+Get-FileHash .\Kotodama-0.19.0-x64.msi -Algorithm SHA256
 ```
 
 配布元が提示したSHA-256と一致する場合だけInstallしてください。

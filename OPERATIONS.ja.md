@@ -10,7 +10,7 @@ kotodama backup "D:\KotodamaBackup\kotodama.db"
 
 ## 稼働確認
 
-MCP接続を初期化し、`get_version`が`Kotodama`と`0.18.1`、`protocolVersion:2`を返すことを確認します。プロセスの存在確認だけでは正常性を保証しません。
+MCP接続を初期化し、`get_version`が`Kotodama`と`0.19.0`、`protocolVersion:2`を返すことを確認します。プロセスの存在確認だけでは正常性を保証しません。
 
 Claude Codeでは`~/.claude/settings.json`の`UserPromptSubmit`と`Stop`に`--integration-id kotodama`を含むHookがあることを確認します。`kotodama configure claude`はMCP接続とHooksを登録し、`kotodama unconfigure claude`はKotodama固有設定だけを削除します。
 
@@ -18,7 +18,7 @@ Claude Codeでは`~/.claude/settings.json`の`UserPromptSubmit`と`Stop`に`--in
 
 Codexでは`~/.codex/hooks.json`の`UserPromptSubmit`と`Stop`に`--integration-id kotodama`を含むHookがあることを確認します。初回の信頼確認で内容を確認して許可してください。`kotodama unconfigure codex`はKotodama固有HookとMCP接続だけを削除します。
 
-MSI版のStreamable HTTP接続先は`http://127.0.0.1:39280/mcp`です。ログオン時に`Kotodama MCP Server` Scheduled Taskがウィンドウを表示せず起動します。`KOTODAMA_HTTP_TOKEN`設定時はBearer認証が必須です。認証の有無にかかわらずloopback以外へ転送・公開しないでください。
+MSI版のStreamable HTTP接続先は`http://127.0.0.1:39280/mcp`です。Windowsサービス`Kotodama`（表示名`Kotodama MCP Server`、自動起動、実行アカウント`NT AUTHORITY\LocalService`）として常駐し、ログオン前から待ち受けます。異常終了時はSCMが60秒後、60秒後、300秒後に再起動し、失敗回数は86400秒でリセットされます。状態は`Get-Service Kotodama`、再起動は管理者権限の`Restart-Service Kotodama`で行います。`KOTODAMA_HTTP_TOKEN`設定時はBearer認証が必須です。認証の有無にかかわらずloopback以外へ転送・公開しないでください。
 
 ## dream運用
 

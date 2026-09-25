@@ -30,6 +30,44 @@ public sealed class InstallerDefinitionTests
     }
 
     [Fact]
+    public void Package_InstallsAutoStartLocalServiceThatRestartsOnFailure()
+    {
+        var document = XDocument.Load(PackagePath);
+        var wix = XNamespace.Get("http://wixtoolset.org/schemas/v4/wxs");
+
+        var component = document.Descendants(wix + "Component")
+            .Single(element => (string?)element.Attribute("Id") == "KotodamaService");
+        component.Element(wix + "File")?.Attribute("Source")?.Value.Should().EndWith(@"\Kotodama.exe");
+        component.Element(wix + "File")?.Attribute("KeyPath")?.Value.Should().Be("yes");
+
+        var service = component.Element(wix + "ServiceInstall")!;
+        service.Attribute("Name")?.Value.Should().Be(KotodamaApplication.WindowsServiceName);
+        service.Attribute("Start")?.Value.Should().Be("auto");
+        service.Attribute("Account")?.Value.Should().Be(@"NT AUTHORITY\LocalService");
+        service.Attribute("Arguments")?.Value.Should().Be("--http");
+        var recovery = document.Descendants(wix + "CustomAction")
+            .Single(element => (string?)element.Attribute("Id") == "ConfigureServiceRecovery");
+        recovery.Attribute("ExeCommand")?.Value.Should().Contain("sc.exe")
+            .And.Contain("failure Kotodama")
+            .And.Contain("actions= restart/60000/restart/60000/restart/300000");
+        recovery.Attribute("Execute")?.Value.Should().Be("deferred");
+        recovery.Attribute("Impersonate")?.Value.Should().Be("no");
+        document.Descendants(wix + "Custom")
+            .Single(element => (string?)element.Attribute("Action") == "ConfigureServiceRecovery")
+            .Attribute("After")?.Value.Should().Be("InstallServices");
+
+        var control = component.Element(wix + "ServiceControl")!;
+        control.Attribute("Start")?.Value.Should().Be("install");
+        control.Attribute("Stop")?.Value.Should().Be("both");
+        control.Attribute("Remove")?.Value.Should().Be("uninstall");
+
+        document.Descendants(wix + "ComponentRef")
+            .Should().Contain(element => (string?)element.Attribute("Id") == "KotodamaService");
+        document.Descendants(wix + "Exclude")
+            .Should().ContainSingle(element => ((string?)element.Attribute("Files") ?? "").EndsWith(@"\Kotodama.exe"));
+    }
+
+    [Fact]
     public void Package_UpgradeStopsTaskAndProcessesBeforeFileValidation()
     {
         var document = XDocument.Load(PackagePath);

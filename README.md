@@ -89,12 +89,12 @@ The storage model preserves conflicting positive and negative claims, distinguis
 
 ### MSI installer
 
-Download [Kotodama-0.18.1-x64.msi](https://github.com/katsushoe/Kotodama/releases/download/v0.18.1/Kotodama-0.18.1-x64.msi), verify its SHA-256, and run it with administrator privileges:
+Download [Kotodama-0.19.0-x64.msi](https://github.com/katsushoe/Kotodama/releases/download/v0.19.0/Kotodama-0.19.0-x64.msi), verify its SHA-256, and run it with administrator privileges:
 
 ```powershell
-Get-FileHash .\Kotodama-0.18.1-x64.msi -Algorithm SHA256
+Get-FileHash .\Kotodama-0.19.0-x64.msi -Algorithm SHA256
 Start-Process msiexec.exe -Verb RunAs -Wait `
-  -ArgumentList '/i "Kotodama-0.18.1-x64.msi" /norestart'
+  -ArgumentList '/i "Kotodama-0.19.0-x64.msi" /norestart'
 ```
 
 The x64 MSI installs Kotodama under `C:\Kotodama`:
@@ -104,15 +104,17 @@ The x64 MSI installs Kotodama under `C:\Kotodama`:
 - `data`: SQLite databases and application data
 - `logs`: logs
 
+The MSI registers and starts the automatic Windows service `Kotodama` (display name `Kotodama MCP Server`) under `NT AUTHORITY\LocalService`. It listens on `http://127.0.0.1:39280/mcp` before logon, keeps running after sign-out, and is restarted by the Service Control Manager after a failure. Upgrading from 0.18.1 or earlier removes the former `Kotodama MCP Server` logon scheduled task.
+
 Configuration, databases, and logs are not included in the MSI. Non-empty data directories remain when upgrading or uninstalling. Set `KOTODAMA_DB` when the database should be stored outside the executable directory.
 
 ### Portable ZIP
 
-Download [Kotodama-0.18.1-win-x64.zip](https://github.com/katsushoe/Kotodama/releases/download/v0.18.1/Kotodama-0.18.1-win-x64.zip), verify its SHA-256, and extract it to a writable directory:
+Download [Kotodama-0.19.0-win-x64.zip](https://github.com/katsushoe/Kotodama/releases/download/v0.19.0/Kotodama-0.19.0-win-x64.zip), verify its SHA-256, and extract it to a writable directory:
 
 ```powershell
-Get-FileHash .\Kotodama-0.18.1-win-x64.zip -Algorithm SHA256
-Expand-Archive .\Kotodama-0.18.1-win-x64.zip -DestinationPath C:\Tools\Kotodama
+Get-FileHash .\Kotodama-0.19.0-win-x64.zip -Algorithm SHA256
+Expand-Archive .\Kotodama-0.19.0-win-x64.zip -DestinationPath C:\Tools\Kotodama
 & C:\Tools\Kotodama\Kotodama.exe
 ```
 

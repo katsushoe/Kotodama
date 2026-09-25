@@ -66,12 +66,12 @@ Claimは明示的な撤回で`active -> retracted`、`dream`で`active -> stale`
 
 ## MSIインストーラーを使う場合
 
-[Kotodama-0.18.1-x64.msi](https://github.com/katsushoe/Kotodama/releases/download/v0.18.1/Kotodama-0.18.1-x64.msi)をダウンロードし、SHA-256を照合してから管理者権限で実行します。
+[Kotodama-0.19.0-x64.msi](https://github.com/katsushoe/Kotodama/releases/download/v0.19.0/Kotodama-0.19.0-x64.msi)をダウンロードし、SHA-256を照合してから管理者権限で実行します。
 
 ```powershell
-Get-FileHash .\Kotodama-0.18.1-x64.msi -Algorithm SHA256
+Get-FileHash .\Kotodama-0.19.0-x64.msi -Algorithm SHA256
 Start-Process msiexec.exe -Verb RunAs -Wait `
-  -ArgumentList '/i "Kotodama-0.18.1-x64.msi" /norestart'
+  -ArgumentList '/i "Kotodama-0.19.0-x64.msi" /norestart'
 ```
 
 インストール先は`C:\Kotodama`です。Windowsのインストール済みアプリへ登録され、UpgradeとUninstallに対応します。
@@ -82,11 +82,11 @@ Start-Process msiexec.exe -Verb RunAs -Wait `
 
 ## ZIP配布を使う場合
 
-[Kotodama-0.18.1-win-x64.zip](https://github.com/katsushoe/Kotodama/releases/download/v0.18.1/Kotodama-0.18.1-win-x64.zip)をダウンロードし、書き込み可能な任意の場所へ展開します。
+[Kotodama-0.19.0-win-x64.zip](https://github.com/katsushoe/Kotodama/releases/download/v0.19.0/Kotodama-0.19.0-win-x64.zip)をダウンロードし、書き込み可能な任意の場所へ展開します。
 
 ```powershell
-Get-FileHash .\Kotodama-0.18.1-win-x64.zip -Algorithm SHA256
-Expand-Archive .\Kotodama-0.18.1-win-x64.zip -DestinationPath C:\Tools\Kotodama
+Get-FileHash .\Kotodama-0.19.0-win-x64.zip -Algorithm SHA256
+Expand-Archive .\Kotodama-0.19.0-win-x64.zip -DestinationPath C:\Tools\Kotodama
 & C:\Tools\Kotodama\Kotodama.exe
 ```
 
@@ -115,7 +115,7 @@ MSI版の実行ファイルは次の場所です。
 C:\Kotodama\bin\Kotodama.exe
 ```
 
-KotodamaはStreamable HTTP専用のMCPサーバーです。引数なしで起動すると`http://127.0.0.1:39280`で待ち受けます。MSI版はScheduled Taskで常駐起動します。`KOTODAMA_TRANSPORT=stdio`は起動エラーになります。
+KotodamaはStreamable HTTP専用のMCPサーバーです。引数なしで起動すると`http://127.0.0.1:39280`で待ち受けます。MSI版はWindowsサービス`Kotodama`として常駐します。`KOTODAMA_TRANSPORT=stdio`は起動エラーになります。
 
 待受URLとBearer認証を指定する場合は次のように設定します。
 

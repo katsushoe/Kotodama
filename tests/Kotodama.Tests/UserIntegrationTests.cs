@@ -12,15 +12,9 @@ public sealed class UserIntegrationTests
     }
 
     [Fact]
-    public void BuildCreateTaskArguments_StartsHttpServerAtLogonWithLimitedRights()
+    public void LegacyTaskName_MatchesTaskRegisteredByPreviousVersions()
     {
-        var arguments = UserIntegration.BuildCreateTaskArguments(@"C:\Kotodama\bin\Kotodama.exe");
-
-        arguments.Should().ContainInOrder(
-            "/Create", "/TN", UserIntegration.TaskName,
-            "/SC", "ONLOGON",
-            "/TR", "\"C:\\Kotodama\\bin\\Kotodama.exe\" --http",
-            "/RL", "LIMITED", "/F");
+        UserIntegration.LegacyTaskName.Should().Be("Kotodama MCP Server");
     }
 
     [Fact]
