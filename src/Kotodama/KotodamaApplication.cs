@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Hosting.WindowsServices;
 using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Server;
 
@@ -13,6 +14,9 @@ namespace Kotodama;
 /// <summary>KotodamaのMCP Hostを構成して実行します。</summary>
 internal static class KotodamaApplication
 {
+    /// <summary>MSIが登録するWindowsサービス名です。</summary>
+    internal const string WindowsServiceName = "Kotodama";
+
     /// <summary>CLIサブコマンド、またはStreamable HTTPサーバーとしてKotodamaを実行します。</summary>
     internal static Task<int> RunAsync(string[] args)
     {
@@ -87,7 +91,13 @@ internal static class KotodamaApplication
 
     private static async Task<int> RunHttpAsync(string[] args, ServerSettings settings)
     {
-        var builder = WebApplication.CreateBuilder(args);
+        // Windowsサービスとして起動された場合だけSCMと連携し、Content Rootを実行ファイルの場所へ固定します。
+        var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+        {
+            Args = args,
+            ContentRootPath = WindowsServiceHelpers.IsWindowsService() ? AppContext.BaseDirectory : null,
+        });
+        builder.Host.UseWindowsService(options => options.ServiceName = WindowsServiceName);
         builder.WebHost.UseUrls(settings.HttpUrl.AbsoluteUri.TrimEnd('/'));
         ConfigureLogging(builder.Logging);
         AddCoreServices(builder.Services);
