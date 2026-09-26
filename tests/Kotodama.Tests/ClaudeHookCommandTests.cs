@@ -42,13 +42,40 @@ public sealed class ClaudeHookCommandTests
         prompt.Should().NotContain("Kotodama");
     }
 
-    [Fact]
-    public async Task RunAsync_StopFirstInvocation_BlocksForKnowledgeReview()
+    [Theory]
+    [InlineData("{\"stop_hook_active\":false}")]
+    [InlineData("{\"stop_hook_active\":true}")]
+    public async Task RunAsync_ClaudeStop_NeverBlocks(string json)
     {
-        using var input = Utf8("{\"stop_hook_active\":false}");
+        using var input = Utf8(json);
         using var output = new StringWriter();
 
         await ClaudeHookCommand.RunAsync("claude", "stop", input, output);
+
+        using var result = JsonDocument.Parse(output.ToString());
+        result.RootElement.EnumerateObject().Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task RunAsync_UserPromptSubmit_AsksToStoreOnlySupportedFacts()
+    {
+        using var input = Utf8("{\"prompt\":\"1\"}");
+        using var output = new StringWriter();
+
+        await ClaudeHookCommand.RunAsync("claude", "user-prompt-submit", input, output);
+
+        using var result = JsonDocument.Parse(output.ToString());
+        result.RootElement.GetProperty("hookSpecificOutput").GetProperty("additionalContext").GetString()
+            .Should().Contain("remember_knowledge").And.Contain("skip messages that are only instructions or questions");
+    }
+
+    [Fact]
+    public async Task RunAsync_CodexStopFirstInvocation_BlocksForKnowledgeReview()
+    {
+        using var input = Utf8($"{{\"session_id\":\"{Guid.NewGuid():N}\"}}");
+        using var output = new StringWriter();
+
+        await ClaudeHookCommand.RunAsync("codex", "stop", input, output);
 
         using var result = JsonDocument.Parse(output.ToString());
         result.RootElement.GetProperty("decision").GetString().Should().Be("block");
@@ -58,12 +85,12 @@ public sealed class ClaudeHookCommandTests
     }
 
     [Fact]
-    public async Task RunAsync_StopWithoutExplicitRemember_RequiresSupportedFactReview()
+    public async Task RunAsync_CodexStopWithoutExplicitRemember_RequiresSupportedFactReview()
     {
-        using var input = Utf8("{\"stop_hook_active\":false}");
+        using var input = Utf8($"{{\"session_id\":\"{Guid.NewGuid():N}\"}}");
         using var output = new StringWriter();
 
-        await ClaudeHookCommand.RunAsync("claude", "stop", input, output);
+        await ClaudeHookCommand.RunAsync("codex", "stop", input, output);
 
         using var result = JsonDocument.Parse(output.ToString());
         var reason = result.RootElement.GetProperty("reason").GetString();
@@ -74,18 +101,6 @@ public sealed class ClaudeHookCommandTests
             .And.Contain("reconfirm it instead of creating a duplicate")
             .And.Contain("Kotodamaに記録しました")
             .And.Contain("only after a successful database write");
-    }
-
-    [Fact]
-    public async Task RunAsync_StopContinuation_AllowsStopToPreventLoop()
-    {
-        using var input = Utf8("{\"stop_hook_active\":true}");
-        using var output = new StringWriter();
-
-        await ClaudeHookCommand.RunAsync("claude", "stop", input, output);
-
-        using var result = JsonDocument.Parse(output.ToString());
-        result.RootElement.EnumerateObject().Should().BeEmpty();
     }
 
     [Theory]
@@ -116,7 +131,7 @@ public sealed class ClaudeHookCommandTests
 
         process.ExitCode.Should().Be(0);
         using var result = JsonDocument.Parse(output);
-        if (eventName == "stop") result.RootElement.GetProperty("decision").GetString().Should().Be("block");
+        if (eventName == "stop") result.RootElement.EnumerateObject().Should().BeEmpty();
         else result.RootElement.GetProperty("hookSpecificOutput").GetProperty("additionalContext").GetString().Should().Contain("explicit request to persist");
     }
 

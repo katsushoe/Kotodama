@@ -23,11 +23,11 @@ Kotodama本体または対応プラグイン／拡張をインストールして
 
 例えば、「ある人物が特定期間に組織へ所属していた」という知識を保持し、公式発表とそれに反する報告を両方保存したうえで、後から該当時点と根拠を伴って回答できます。Kotodamaが提供するのは知識の保存・検索Toolです。AIまたはMCPクライアントがToolを呼び出す必要があり、会話の自動取り込みやInternet上の知識の自動更新は行いません。
 
-KotodamaはMCP初期化時にServer Instructionsを返し、`use_kotodama` MCP Promptも提供します。「覚えて」「記憶して」「今後参照して」等の明示依頼には、自然文を一回の呼び出しで保存する`remember_knowledge` Toolを提供します。予定や出来事は原文に加えてActor、Place、期間、Eventを保存でき、`query_events`で構造検索できます。`configure claude`と`configure codex`は各クライアントのHooksも設定し、回答前の検索と応答後の知識登録確認を自動化します。生の会話履歴は保存せず、直接根拠がある事実は長期利用価値が不確かな場合も保存候補とし、未再確認の知識はdreamで段階的に薄れます。
+KotodamaはMCP初期化時にServer Instructionsを返し、`use_kotodama` MCP Promptも提供します。「覚えて」「記憶して」「今後参照して」等の明示依頼には、自然文を一回の呼び出しで保存する`remember_knowledge` Toolを提供します。予定や出来事は原文に加えてActor、Place、期間、Eventを保存でき、`query_events`で構造検索できます。`configure claude`と`configure codex`は各クライアントのHooksも設定し、回答前の検索と知識登録確認を自動化します。生の会話履歴は保存せず、直接根拠がある事実は長期利用価値が不確かな場合も保存候補とし、未再確認の知識はdreamで段階的に薄れます。
 
 Codex向けには`plugins/kotodama`にMCP接続と`kotodama-knowledge` Skillを含むプラグインを提供します。`configure codex`は`kotodama-curator`カスタムAgentもユーザースコープへ登録し、応答後の知識整理を分離Contextで実行できるようにします。Agentが利用不能な場合は親Agentが同じ確認を行います。
 
-自動登録方式はクライアントごとに異なります。Claude CodeとCodexでは応答完了Hookが、明示的な記憶依頼がない通常の会話も知識候補として確認します。ユーザーの事実記述または識別済みSourceで裏付けられた知識だけを登録し、会話本文や根拠のないAI生成文は保存しません。
+自動登録方式はクライアントごとに異なります。Claude CodeではUserPromptSubmit HookとServer Instructionsが、Codexでは応答完了Hookが、明示的な記憶依頼がない通常の会話も知識候補として確認します。Claude Codeでは毎ターンの追加応答を避けるため、応答完了（Stop）Hookを使用しません。ユーザーの事実記述または識別済みSourceで裏付けられた知識だけを登録し、会話本文や根拠のないAI生成文は保存しません。
 
 DBへの新規記録が成功した場合、AIは利用者へ`Kotodamaに記録しました`と通知します。既存知識との重複、登録見送り、確認待ち、拒否、失敗では、この成功通知を表示しません。
 
@@ -66,12 +66,12 @@ Claimは明示的な撤回で`active -> retracted`、`dream`で`active -> stale`
 
 ## MSIインストーラーを使う場合
 
-[Kotodama-0.19.0-x64.msi](https://github.com/katsushoe/Kotodama/releases/download/v0.19.0/Kotodama-0.19.0-x64.msi)をダウンロードし、SHA-256を照合してから管理者権限で実行します。
+[Kotodama-0.20.0-x64.msi](https://github.com/katsushoe/Kotodama/releases/download/v0.20.0/Kotodama-0.20.0-x64.msi)をダウンロードし、SHA-256を照合してから管理者権限で実行します。
 
 ```powershell
-Get-FileHash .\Kotodama-0.19.0-x64.msi -Algorithm SHA256
+Get-FileHash .\Kotodama-0.20.0-x64.msi -Algorithm SHA256
 Start-Process msiexec.exe -Verb RunAs -Wait `
-  -ArgumentList '/i "Kotodama-0.19.0-x64.msi" /norestart'
+  -ArgumentList '/i "Kotodama-0.20.0-x64.msi" /norestart'
 ```
 
 インストール先は`C:\Kotodama`です。Windowsのインストール済みアプリへ登録され、UpgradeとUninstallに対応します。
@@ -82,11 +82,11 @@ Start-Process msiexec.exe -Verb RunAs -Wait `
 
 ## ZIP配布を使う場合
 
-[Kotodama-0.19.0-win-x64.zip](https://github.com/katsushoe/Kotodama/releases/download/v0.19.0/Kotodama-0.19.0-win-x64.zip)をダウンロードし、書き込み可能な任意の場所へ展開します。
+[Kotodama-0.20.0-win-x64.zip](https://github.com/katsushoe/Kotodama/releases/download/v0.20.0/Kotodama-0.20.0-win-x64.zip)をダウンロードし、書き込み可能な任意の場所へ展開します。
 
 ```powershell
-Get-FileHash .\Kotodama-0.19.0-win-x64.zip -Algorithm SHA256
-Expand-Archive .\Kotodama-0.19.0-win-x64.zip -DestinationPath C:\Tools\Kotodama
+Get-FileHash .\Kotodama-0.20.0-win-x64.zip -Algorithm SHA256
+Expand-Archive .\Kotodama-0.20.0-win-x64.zip -DestinationPath C:\Tools\Kotodama
 & C:\Tools\Kotodama\Kotodama.exe
 ```
 

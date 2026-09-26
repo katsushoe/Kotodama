@@ -28,9 +28,9 @@ dotnet publish src/Kotodama/Kotodama.csproj `
 $publishDir = (Resolve-Path artifacts/publish/win-x64).Path
 .tools/wix build installer/Package.wxs `
   -arch x64 `
-  -d ProductVersion=0.19.0 `
+  -d ProductVersion=0.20.0 `
   -d PublishDir=$publishDir `
-  -o artifacts/release/Kotodama-0.19.0-x64.msi
+  -o artifacts/release/Kotodama-0.20.0-x64.msi
 ```
 
 ## Portable ZIP生成
@@ -38,7 +38,7 @@ $publishDir = (Resolve-Path artifacts/publish/win-x64).Path
 `artifacts/publish/win-x64`の内容をZIPのルートへ格納し、`Kotodama-<version>-win-x64.zip`とします。ZIP内のパス区切りは`/`にしてください。Windows PowerShell 5.1の`System.IO.Compression.ZipFile`は`\`区切りのエントリを作成するため使用しません。
 
 ```powershell
-python -c "import shutil; shutil.make_archive('artifacts/release/Kotodama-0.19.0-win-x64', 'zip', 'artifacts/publish/win-x64')"
+python -c "import shutil; shutil.make_archive('artifacts/release/Kotodama-0.20.0-win-x64', 'zip', 'artifacts/publish/win-x64')"
 ```
 
 Claude Desktop Extension（DXT）は0.18.0で廃止しました。KotodamaのMCPサーバーはStreamable HTTP専用です。
