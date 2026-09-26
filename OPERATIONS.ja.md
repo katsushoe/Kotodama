@@ -10,9 +10,9 @@ kotodama backup "D:\KotodamaBackup\kotodama.db"
 
 ## 稼働確認
 
-MCP接続を初期化し、`get_version`が`Kotodama`と`0.19.0`、`protocolVersion:2`を返すことを確認します。プロセスの存在確認だけでは正常性を保証しません。
+MCP接続を初期化し、`get_version`が`Kotodama`と`0.20.0`、`protocolVersion:2`を返すことを確認します。プロセスの存在確認だけでは正常性を保証しません。
 
-Claude Codeでは`~/.claude/settings.json`の`UserPromptSubmit`と`Stop`に`--integration-id kotodama`を含むHookがあることを確認します。`kotodama configure claude`はMCP接続とHooksを登録し、`kotodama unconfigure claude`はKotodama固有設定だけを削除します。
+Claude Codeでは`~/.claude/settings.json`の`UserPromptSubmit`に`--integration-id kotodama`を含むHookがあることを確認します。0.20.0以降はClaude Code向けの`Stop` Hookを登録せず、更新時に旧版が登録したKotodamaの`Stop` Hookだけを削除します。旧設定から呼ばれた`hook claude stop`も差し戻しを返しません。`kotodama configure claude`はMCP接続とHooksを登録し、`kotodama unconfigure claude`はKotodama固有設定だけを削除します。
 
 「覚えておいて」等の明示的な永続化依頼では、内蔵メモリや読み込み済み文書だけで完了せず、Kotodama内を検索して未登録ならClaimを登録します。同等のactive Claimがある場合は重複登録しません。
 

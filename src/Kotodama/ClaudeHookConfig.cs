@@ -4,6 +4,7 @@ using System.Text.Json.Nodes;
 namespace Kotodama;
 
 /// <summary>Claude Codeのユーザー設定へKotodama Hooksを安全に統合します。</summary>
+/// <remarks>Stop Hookは毎ターン追加応答を発生させるため登録しません。記録の促しはUserPromptSubmit HookとServer Instructionsに一本化します。</remarks>
 internal static class ClaudeHookConfig
 {
     private const string Marker = "--integration-id kotodama";
@@ -17,7 +18,8 @@ internal static class ClaudeHookConfig
         var hooks = root["hooks"] as JsonObject ?? new JsonObject();
         root["hooks"] = hooks;
         AddHook(hooks, "UserPromptSubmit", BuildCommand(executablePath, "user-prompt-submit"));
-        AddHook(hooks, "Stop", BuildCommand(executablePath, "stop"));
+        // 0.19.0以前が登録したStop Hookだけを削除し、利用者の他Hookは保持します。
+        RemoveHook(hooks, "Stop");
         Write(path, root);
     }
 

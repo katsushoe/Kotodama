@@ -8,7 +8,7 @@ internal static class ClaudeHookCommand
     internal const string IntegrationId = "kotodama";
 
     private const string SearchContext = """
-        Use the connected Kotodama MCP server before answering when retained knowledge may be relevant. Search first, treat an empty result as unknown, and do not store secrets or raw conversation transcripts.
+        Use the connected Kotodama MCP server before answering when retained knowledge may be relevant. Search first, treat an empty result as unknown, and do not store secrets or raw conversation transcripts. Before finishing, if this user message states a durable fact directly supported by the user or an identified source, store it with remember_knowledge; skip messages that are only instructions or questions.
         """;
 
     private const string ExplicitPersistenceContext = """
@@ -86,8 +86,8 @@ internal static class ClaudeHookCommand
             return BuildCodexStopResult(input);
         }
 
-        var alreadyActive = input.TryGetProperty("stop_hook_active", out var value) && value.ValueKind == JsonValueKind.True;
-        return alreadyActive ? new { } : new { decision = "block", reason = PersistReason };
+        // Claude CodeのStop Hookは廃止しました。旧設定から呼ばれても差し戻さず、追加応答を発生させません。
+        return new { };
     }
 
     private static object BuildCodexStopResult(JsonElement input)
