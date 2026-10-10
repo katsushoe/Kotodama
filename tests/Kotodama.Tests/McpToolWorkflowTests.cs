@@ -76,7 +76,7 @@ public sealed class McpToolWorkflowTests : IAsyncLifetime
             "get_version", "get_entity", "get_knowledge_input", "get_statement", "search_entities", "propose_claim", "retract_claim", "reactivate_claim", "delete_claim",
             "query_claims", "query_relations", "get_neighbors", "get_knowledge_context",
             "create_tag", "list_tags", "rename_tag", "add_tag_alias", "merge_tags", "set_knowledge_tags", "query_tagged_inputs", "query_tagged_statements", "query_tagged_claims",
-            "run_dream", "create_entity", "create_relation_type", "update_relation_type", "delete_relation_type", "create_event", "remember_knowledge", "query_events", "get_equivalent_entities", "merge_similarity_groups");
+            "run_dream", "create_entity", "create_relation_type", "update_relation_type", "delete_relation_type", "create_event", "remember_knowledge", "query_events", "get_equivalent_entities", "merge_similarity_groups", "merge_namespace");
     }
 
     [Fact]
@@ -85,7 +85,7 @@ public sealed class McpToolWorkflowTests : IAsyncLifetime
         var result = await _client.CallToolAsync("get_version", cancellationToken: CancellationToken.None);
 
         result.IsError.Should().NotBeTrue();
-        GetResponseJson(result).Should().Contain("Kotodama").And.Contain("0.20.0").And.Contain("protocolVersion");
+        GetResponseJson(result).Should().Contain("Kotodama").And.Contain("0.21.0").And.Contain("protocolVersion");
     }
 
     [Fact]

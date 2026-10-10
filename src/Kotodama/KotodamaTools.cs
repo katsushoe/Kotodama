@@ -39,6 +39,9 @@ public sealed class KotodamaTools(KnowledgeStore store)
     [McpServerTool(Name = "query_tagged_claims", ReadOnly = true), Description("Claimをtags/tagIdsの完全一致で検索します。tagMatch=any/all、namespace、状態、有効時点、afterId、limitを指定し、付与由来を返します。")]
     public Task<IReadOnlyList<TaggedClaim>> QueryTaggedClaims(TagQueryInput input, CancellationToken cancellationToken) => ValidateToolAsync(() => store.QueryTaggedClaimsAsync(input, cancellationToken));
 
+    [McpServerTool(Name = "merge_namespace"), Description("明示的な統合依頼時だけ使用します。sourceNamespaceのEntity・知識入力・タグをtargetNamespaceへ移し、同名・同classのEntityは参照を付け替えて統合します。dryRun既定trueで件数と衝突を返し、実行はexpectedCount（試算のtotalAffected）必須です。衝突または件数相違時は何も変更しません。")]
+    public Task<MergeNamespaceResult> MergeNamespace(MergeNamespaceInput input, CancellationToken cancellationToken) => ValidateToolAsync(() => store.MergeNamespaceAsync(input, cancellationToken));
+
     private static async Task<T> ValidateToolAsync<T>(Func<Task<T>> operation)
     {
         try
@@ -53,7 +56,7 @@ public sealed class KotodamaTools(KnowledgeStore store)
     }
 
     [McpServerTool(Name = "get_version"), Description("稼働中のKotodamaバージョンを返します。")]
-    public static object GetVersion() => new { name = "Kotodama", version = "0.20.0", protocolVersion = 2, schemaVersion = 2 };
+    public static object GetVersion() => new { name = "Kotodama", version = "0.21.0", protocolVersion = 2, schemaVersion = 2 };
 
     [McpServerTool(Name = "get_entity"), Description("IDでEntityを取得します。存在しない場合はnullです。")]
     public Task<EntityRecord?> GetEntity(long id, CancellationToken cancellationToken) => store.GetEntityAsync(id, cancellationToken);
