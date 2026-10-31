@@ -2,7 +2,8 @@ using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Client;
 
-var logDirectory = Kotodama.ApplicationPaths.GetLogDirectory(AppContext.BaseDirectory);
+var settings = Kotodama.KotodamaSettings.Load(Kotodama.KotodamaSettings.ConfigurationPath);
+var logDirectory = settings.LogDirectory;
 using var loggerProvider = new Kotodama.DailyFileLoggerProvider(logDirectory, TimeProvider.System);
 using var loggerFactory = LoggerFactory.Create(builder => builder.AddProvider(loggerProvider));
 using var exceptionHandler = new Kotodama.GlobalExceptionHandler(loggerFactory.CreateLogger("Kotodama.HealthCheck.Process"));
@@ -11,7 +12,8 @@ return await exceptionHandler.RunAsync(RunHealthCheckAsync);
 
 static async Task<int> RunHealthCheckAsync()
 {
-    var endpoint = new Uri(Kotodama.ServerSettings.DefaultHttpUrl + Kotodama.ServerSettings.HttpPath);
+    var server = Kotodama.KotodamaSettings.Load(Kotodama.KotodamaSettings.ConfigurationPath).GetServerSettings();
+    var endpoint = new Uri(server.HttpUrl.AbsoluteUri.TrimEnd('/') + Kotodama.ServerSettings.HttpPath);
 
     static async Task<T> MeasureAsync<T>(string name, Func<Task<T>> action)
     {
@@ -24,6 +26,7 @@ static async Task<int> RunHealthCheckAsync()
 
     using (var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(30) })
     {
+        if (server.HttpToken is not null) httpClient.DefaultRequestHeaders.Authorization = new("Bearer", server.HttpToken);
         var response = await MeasureAsync("HTTP_GET", () => httpClient.GetAsync(endpoint));
         Console.WriteLine($"HTTP_GET_STATUS={(int)response.StatusCode}");
     }
@@ -34,6 +37,10 @@ static async Task<int> RunHealthCheckAsync()
         TransportMode = HttpTransportMode.StreamableHttp,
         ConnectionTimeout = TimeSpan.FromSeconds(30),
     };
+    if (server.HttpToken is not null)
+    {
+        options.AdditionalHeaders = new Dictionary<string, string> { ["Authorization"] = $"Bearer {server.HttpToken}" };
+    }
 
     await using var client = await MeasureAsync("MCP_INITIALIZE", async () =>
         await McpClient.CreateAsync(new HttpClientTransport(options)));

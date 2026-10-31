@@ -12,3 +12,4 @@ coverage/
 artifacts/
 .codex/
 .local/
+.tmp/

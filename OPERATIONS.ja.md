@@ -18,13 +18,19 @@ Claude Codeでは`~/.claude/settings.json`の`UserPromptSubmit`に`--integration
 
 Codexでは`~/.codex/hooks.json`の`UserPromptSubmit`と`Stop`に`--integration-id kotodama`を含むHookがあることを確認します。初回の信頼確認で内容を確認して許可してください。`kotodama unconfigure codex`はKotodama固有HookとMCP接続だけを削除します。
 
-MSI版のStreamable HTTP接続先は`http://127.0.0.1:39280/mcp`です。Windowsサービス`Kotodama`（表示名`Kotodama MCP Server`、自動起動、実行アカウント`NT AUTHORITY\LocalService`）として常駐し、ログオン前から待ち受けます。異常終了時はSCMが60秒後、60秒後、300秒後に再起動し、失敗回数は86400秒でリセットされます。状態は`Get-Service Kotodama`、再起動は管理者権限の`Restart-Service Kotodama`で行います。`KOTODAMA_HTTP_TOKEN`設定時はBearer認証が必須です。認証の有無にかかわらずloopback以外へ転送・公開しないでください。
+MSI版のStreamable HTTP接続先は`http://127.0.0.1:39280/mcp`です。ユーザー権限のトレイアプリ`Kotodama.Tray.exe`としてログイン時に起動します。状態確認・設定とログの表示・再起動・終了はトレイから行います。ログイン前とログアウト後は稼働しません。`C:\Kotodama\config\kotodama.json`に`httpToken`を設定するとBearer認証が必須です。認証の有無にかかわらずloopback以外へ転送・公開しないでください。
 
 ## dream運用
 
-鮮度管理を使用する場合は、RelationTypeへ`freshnessPolicy`と`refreshAfterSeconds`を設定します。HTTP常駐プロセスがdreamを定期実行し、間隔は`KOTODAMA_DREAM_INTERVAL_SECONDS`（既定3600秒）で設定します。
+鮮度管理を使用する場合は、RelationTypeへ`freshnessPolicy`と`refreshAfterSeconds`を設定します。HTTP常駐プロセスがdreamを定期実行し、間隔は`C:\Kotodama\config\kotodama.json`の`dreamIntervalSeconds`（既定3600秒）で設定します。
 
 `examined`は評価対象数、`markedStale`は実更新数です。並行更新や別dreamとの競合により、`examined`より`markedStale`が少ないことは正常です。
+
+## MCP利用ログ
+
+すべてのMCP Tool呼び出しは`mcp_tool_usage_log`へ自動記録されます。保存項目はTool名、開始時刻（UTC）、所要時間、MCP応答の成功・エラー・キャンセルだけです。入力引数、応答本文、利用者IDは保存しません。記録に失敗してもToolの応答は維持し、警告をアプリケーションログへ出します。
+
+ログは利用者がDBを管理・削除するまで保持し、自動削除しません。Tool呼び出しごとに1行ずつ増えるため、長期間の運用ではDB容量を確認し、保持期間を決めたうえで別途整理してください。
 
 ## 復旧
 
@@ -42,7 +48,7 @@ MSI UpgradeおよびUninstallは、利用者が作成した非空の`data`、`co
 
 | 症状 | 確認事項 |
 |---|---|
-| `unable to open database file` | DB親ディレクトリの存在と書き込み権限、`KOTODAMA_DB` |
+| `unable to open database file` | 設定ファイルの`databasePath`、DB親ディレクトリの存在、実行ユーザーへの書き込み権限 |
 | 起動直後に終了コード1 | 標準エラー出力、DBパス、SQLiteファイル、ディスク空き容量 |
 | Toolが見つからない | MCP初期化結果と30個のTool一覧、接続先実行ファイル |
 | Claimが検索されない | `includeRetracted`、`validAt`、Entity ID、RelationType名 |

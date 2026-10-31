@@ -2,7 +2,7 @@ using System.Diagnostics;
 
 namespace Kotodama;
 
-/// <summary>ログオンユーザー向けのMCPクライアント設定を管理します。常駐起動はMSIが登録するWindowsサービスが担います。</summary>
+/// <summary>ログオンユーザー向けのMCPクライアント設定を管理します。常駐起動はMSIがユーザーのログイン時起動へ登録するトレイアプリが担います。</summary>
 internal static class UserIntegration
 {
     /// <summary>0.18.1以前がログオン時起動に使っていたScheduled Task名です。移行時に削除します。</summary>

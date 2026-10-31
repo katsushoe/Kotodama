@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -32,6 +31,8 @@ public sealed class McpHttpTests : IAsyncLifetime
     [Fact]
     public void Initialize_ThroughHttp_ReturnsInstructionsAndCapabilities()
     {
+        _client.ServerInfo.Name.Should().Be("Kotodama");
+        _client.ServerInfo.Version.Should().Be(typeof(KotodamaApplication).Assembly.GetName().Version!.ToString());
         _client.ServerCapabilities.Tools.Should().NotBeNull();
         _client.ServerCapabilities.Prompts.Should().NotBeNull();
         _client.ServerInstructions.Should().Contain("persistent structured knowledge");
@@ -70,24 +71,16 @@ public sealed class McpHttpTests : IAsyncLifetime
 
     private async Task<(int ExitCode, string Output)> RunToolCommandAsync(string tool, string path)
     {
-        var start = new ProcessStartInfo("dotnet") { UseShellExecute = false, RedirectStandardOutput = true, CreateNoWindow = true };
-        start.ArgumentList.Add(typeof(KnowledgeStore).Assembly.Location);
-        start.ArgumentList.Add("call");
-        start.ArgumentList.Add(tool);
-        start.ArgumentList.Add(path);
-        start.Environment["KOTODAMA_HTTP_URL"] = _endpoint.GetLeftPart(UriPartial.Authority);
-        start.Environment["KOTODAMA_HTTP_TOKEN"] = HttpToken;
-        using var process = Process.Start(start) ?? throw new InvalidOperationException("CLI did not start.");
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+        using var output = new StringWriter();
         try
         {
-            var output = await process.StandardOutput.ReadToEndAsync(timeout.Token);
-            await process.WaitForExitAsync(timeout.Token);
-            return (process.ExitCode, output);
+            var exitCode = await ToolCallCommand.RunAsync(tool, path, _server.Settings.GetServerSettings(), output, timeout.Token);
+            return (exitCode, output.ToString());
         }
-        finally
+        catch (JsonException exception)
         {
-            if (!process.HasExited) process.Kill(true);
+            return (1, exception.Message);
         }
     }
 
@@ -163,14 +156,11 @@ public sealed class McpHttpTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Server_WhenStdioTransportIsRequested_ExitsWithError()
+    public void ServerSettings_WhenStdioTransportIsRequested_ThrowsRemovalGuidance()
     {
-        await using var server = KotodamaHttpTestServer.Start(null, new Dictionary<string, string> { ["KOTODAMA_TRANSPORT"] = "stdio" });
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+        var action = () => ServerSettings.Parse("stdio", ServerSettings.DefaultHttpUrl);
 
-        var exitCode = await server.WaitForExitAsync(timeout.Token);
-
-        exitCode.Should().NotBe(0);
+        action.Should().Throw<InvalidOperationException>().WithMessage("*Transport=stdio was removed*");
     }
 
     private static string GetResponseJson(CallToolResult result)

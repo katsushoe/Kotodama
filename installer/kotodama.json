@@ -1,0 +1,9 @@
+{
+  "databasePath": "C:\\Kotodama\\data\\kotodama.db",
+  "logDirectory": "C:\\Kotodama\\logs",
+  "dreamTempStore": "Default",
+  "dreamIntervalSeconds": 3600,
+  "transport": "http",
+  "httpUrl": "http://127.0.0.1:39280",
+  "httpToken": null
+}

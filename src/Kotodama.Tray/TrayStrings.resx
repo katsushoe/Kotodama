@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
+  <data name="Starting" xml:space="preserve"><value>Kotodama: 起動中</value></data>
+  <data name="Running" xml:space="preserve"><value>Kotodama: 稼働中</value></data>
+  <data name="Stopped" xml:space="preserve"><value>Kotodama: 停止</value></data>
+  <data name="Failed" xml:space="preserve"><value>Kotodama: 起動失敗（ログを確認）</value></data>
+  <data name="Restart" xml:space="preserve"><value>再起動</value></data>
+  <data name="Logs" xml:space="preserve"><value>ログフォルダーを開く</value></data>
+  <data name="Config" xml:space="preserve"><value>設定ファイルを開く</value></data>
+  <data name="Exit" xml:space="preserve"><value>終了</value></data>
+  <data name="UnexpectedError" xml:space="preserve"><value>予期しないエラーが発生しました。Kotodamaのログを確認してください。</value></data>
+</root>

@@ -1,5 +1,6 @@
 <Solution>
   <Project Path="src/Kotodama/Kotodama.csproj" />
+  <Project Path="src/Kotodama.Tray/Kotodama.Tray.csproj" />
   <Project Path="tests/Kotodama.Tests/Kotodama.Tests.csproj" />
   <Project Path="tools/Kotodama.HealthCheck/Kotodama.HealthCheck.csproj" />
 </Solution>

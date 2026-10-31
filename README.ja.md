@@ -2,6 +2,8 @@
 
 Kotodamaは、時間・認識主体・重みを扱えるSQLite Knowledge Graph MCPサーバーを中核に、Codex／Claude Code向けプラグイン、Hooks、Agentを提供するAI知識基盤です。
 
+[English](README.md)
+
 ## Kotodamaの概要
 
 Kotodamaは、AIエージェントが利用する知識をローカルのSQLiteへ永続化するMCPサーバーと、AIがその知識を自然な会話から安全に登録・検索するためのクライアント連携機能をまとめて提供します。Codexにはプラグイン、Skill、curator Agent、Hooksを、Claude CodeにはMCP設定とHooksを提供します。中核のMCPサーバーはStreamable HTTPで常駐し、Entity間の関係だけでなく、その関係を誰がどのSourceに基づいて主張したか、確信度、有効期間、観測日時、最終確認日時、鮮度も保持します。
@@ -63,10 +65,28 @@ Claimは明示的な撤回で`active -> retracted`、`dream`で`active -> stale`
 - dreamは`remembers` Claimのconfidenceを段階的に減衰し、基準未満で`active`から`stale`へ変更します。
 - Streamable HTTPによるMCPサーバーとしてProtocol 2のToolを提供します。stdio Transportは0.18.0で廃止しました。
 - 本文を持たない入力単位と派生Claimへのタグ付与、AND/OR検索、後付け・解除、改名・別名・統合に対応します。[知識タグ仕様](KNOWLEDGE_TAGS.ja.md)を参照してください。
+- MCP Tool呼び出しの利用状況を専用DB表へ自動記録します。引数と応答本文は保存しません。保持期間は自動設定されず、利用者がDBを管理します。
 
-## MSIインストーラーを使う場合
+## 現在の開発版MSI（ユーザー権限のトレイ常駐）
 
-[Kotodama-0.20.0-x64.msi](https://github.com/katsushoe/Kotodama/releases/download/v0.20.0/Kotodama-0.20.0-x64.msi)をダウンロードし、SHA-256を照合してから管理者権限で実行します。
+現在のソースはユーザー単位のトレイ常駐アプリを生成します。この開発版パッケージの公開ダウンロードリンクは本書では案内していません。[開発手順](DEVELOPMENT.ja.md#msi生成)または[インストーラービルド手順（英語）](installer/README.md)から`Kotodama-0.21.0-user-x64.msi`を作成します。
+
+インストール先は`C:\Kotodama`です。`bin`にプログラム、`config`に唯一の設定ファイル、`data`にSQLite DB、`logs`に日別ログを配置します。初回の保存先権限設定と旧サービス版の撤去は[Windowsインストール](INSTALLATION.ja.md)を参照してください。この初回準備には管理者権限が必要です。
+
+準備後は通常ユーザーのPowerShellで導入・更新します。
+
+```powershell
+msiexec.exe /i "Kotodama-0.21.0-user-x64.msi" /norestart
+& C:\Kotodama\bin\Kotodama.Tray.exe
+```
+
+ユーザー単位MSIはHKCU Runへトレイのログイン時起動を登録し、ユーザーPATHを設定します。トレイから状態確認、設定・ログの表示、再起動、終了を操作できます。更新前にトレイを終了し、更新後に起動します。ログイン前・ログアウト後は稼働しません。`C:\Kotodama\config\kotodama.json`は未作成の場合のみ配置し、更新・削除時にも設定ファイルと非空のデータディレクトリを保持します。
+
+## 公開済み旧版MSI（0.20.0、Windowsサービス方式）
+
+次のダウンロードは従来のWindowsサービス版であり、現在の開発版トレイアプリは含みません。
+
+[Kotodama-0.20.0-x64.msi](https://github.com/katsushoe/Kotodama/releases/download/v0.20.0/Kotodama-0.20.0-x64.msi)
 
 ```powershell
 Get-FileHash .\Kotodama-0.20.0-x64.msi -Algorithm SHA256
@@ -74,13 +94,13 @@ Start-Process msiexec.exe -Verb RunAs -Wait `
   -ArgumentList '/i "Kotodama-0.20.0-x64.msi" /norestart'
 ```
 
-インストール先は`C:\Kotodama`です。Windowsのインストール済みアプリへ登録され、UpgradeとUninstallに対応します。
+この旧MSIは`C:\Kotodama`へPC全体用に導入してWindowsサービスを登録するため、管理者権限で実行します。開発版トレイMSIへ切り替える場合は上記の移行手順を使用し、両方を同時に導入しないでください。
 
 ## Claude Desktop Extension（廃止）
 
 0.18.0でstdio MCPサーバーを廃止したため、Claude Desktop Extension（DXT）の配布を終了しました。導入済みの場合は、Claude Desktopの`Settings > Extensions`でKotodama拡張を無効化または削除してください。旧版の拡張がMSI版と同じDBを開くと、移行済みスキーマを変更するおそれがあります。Claude Codeからは常駐HTTPサーバーへ接続します。
 
-## ZIP配布を使う場合
+## 公開済み旧版ZIP（0.20.0）
 
 [Kotodama-0.20.0-win-x64.zip](https://github.com/katsushoe/Kotodama/releases/download/v0.20.0/Kotodama-0.20.0-win-x64.zip)をダウンロードし、書き込み可能な任意の場所へ展開します。
 
@@ -90,42 +110,33 @@ Expand-Archive .\Kotodama-0.20.0-win-x64.zip -DestinationPath C:\Tools\Kotodama
 & C:\Tools\Kotodama\Kotodama.exe
 ```
 
+これは旧版0.20.0のZIPです。現在の開発版トレイアプリを含むZIPの生成は[開発手順](DEVELOPMENT.ja.md#portable-zip生成)を参照してください。
+
 ZIPは自己完結型で、別途.NET Runtimeを必要としません。Windowsへの製品登録、`PATH`変更、自動Upgradeは行いません。更新時は展開先の`data`ディレクトリを保持してください。
 
 ## ソース配布を使う場合
 
-.NET 10 SDKをインストールし、Gitから取得してビルドします。
+Windows x64でWindows Desktop参照を含む.NET 10 SDKを導入し、[初回準備](INSTALLATION.ja.md#保存先と初回準備)で保存先への書き込み権限を確保します。その後、現在の開発ブランチを取得してビルドします。
 
 ```powershell
-git clone https://github.com/katsushoe/Kotodama.git
+git clone --branch develop https://github.com/katsushoe/Kotodama.git
 Set-Location Kotodama
-git checkout v0.11.5
 dotnet restore Kotodama.slnx
 dotnet build Kotodama.slnx -c Release --no-restore
-New-Item -ItemType Directory -Force data | Out-Null
-$env:KOTODAMA_DB = (Join-Path $PWD 'data\kotodama.db')
-dotnet run --project src\Kotodama -c Release --no-build
+New-Item -ItemType Directory -Force C:\Kotodama\config | Out-Null
+if (-not (Test-Path C:\Kotodama\config\kotodama.json)) { Copy-Item installer\kotodama.json C:\Kotodama\config\kotodama.json }
+dotnet run --project src\Kotodama.Tray -c Release --no-build
 ```
 
 ## 起動時の注意
 
-MSI版の実行ファイルは次の場所です。
+現在の開発版MSIのトレイ実行ファイルは次の場所です。
 
 ```text
-C:\Kotodama\bin\Kotodama.exe
+C:\Kotodama\bin\Kotodama.Tray.exe
 ```
 
-KotodamaはStreamable HTTP専用のMCPサーバーです。引数なしで起動すると`http://127.0.0.1:39280`で待ち受けます。MSI版はWindowsサービス`Kotodama`として常駐します。`KOTODAMA_TRANSPORT=stdio`は起動エラーになります。
-
-待受URLとBearer認証を指定する場合は次のように設定します。
-
-```powershell
-$env:KOTODAMA_HTTP_URL = "http://127.0.0.1:39280"
-$env:KOTODAMA_HTTP_TOKEN = "十分に長いランダムなtoken"
-& "C:\Kotodama\bin\Kotodama.exe"
-```
-
-接続先は`http://127.0.0.1:39280/mcp`です。`KOTODAMA_HTTP_TOKEN`を設定した場合は、MCPクライアントから同じ値をBearer tokenとして送信します。HTTP待受は認証の有無にかかわらずloopbackに制限されます。
+KotodamaはStreamable HTTP専用のMCPサーバーです。設定は`C:\Kotodama\config\kotodama.json`だけから読み、環境変数や別の設定ファイルは読みません。既定の待受は`http://127.0.0.1:39280`、MCP接続先は`http://127.0.0.1:39280/mcp`です。MSI版はユーザー権限の`Kotodama.Tray.exe`でトレイに常駐し、ログイン時に起動します。導入・移行は[インストール手順](INSTALLATION.ja.md)を参照してください。stdio Transportは0.18.0で廃止しました。
 
 既定のデータベースは次の場所です。
 
@@ -136,9 +147,10 @@ C:\Kotodama\data\kotodama.db
 ## ソースからの起動
 
 ```powershell
-$env:KOTODAMA_DB = "C:\data\kotodama.db"
-dotnet run --project src/Kotodama
+dotnet run --project src/Kotodama.Tray -c Release --no-build
 ```
+
+トレイとそのHTTPホストが起動します。HTTPホストだけを起動する場合は`dotnet run --project src/Kotodama -c Release --no-build`を使用します。同じ接続先ではトレイと単独ホストを同時に起動しないでください。どちらも唯一の設定ファイルを読み、ソースからの起動だけではログイン時起動やAIクライアントを登録しません。
 
 ## 最初に読む文書
 
@@ -155,7 +167,7 @@ dotnet run --project src/Kotodama
 
 ## 定期dream・バックアップ・ログ
 
-- HTTP常駐時はdreamを既定3600秒間隔で実行します。`KOTODAMA_DREAM_INTERVAL_SECONDS`で変更できます。
+- HTTP常駐時はdreamを既定3600秒間隔で実行します。間隔やその他の設定は`C:\Kotodama\config\kotodama.json`で変更できます。
 - `kotodama backup <出力先.db>`でSQLiteオンラインバックアップを作成できます。
 - MSI版のログは`C:\Kotodama\logs\kotodama-YYYYMMDD.log`へ日別保存します。
 - Claim物理削除とRelationType削除は取り消せません。RelationTypeは使用中の場合、削除を拒否します。

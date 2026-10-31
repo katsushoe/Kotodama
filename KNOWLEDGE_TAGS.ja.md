@@ -67,4 +67,4 @@ set_knowledge_tags.input: `targetKind: "statement" | "claim"`, `tagIds`（1～10
 
 dry-runのmatchedCountを確認して同じ条件に`dryRun:false, expectedCount:<確認件数>`を指定します。
 
-CLIは稼働中HTTPサービスへ接続する`Kotodama call <tool> <arguments.json>`です。引数ファイルはMCPと同じJSONオブジェクトです。接続先は既存のKOTODAMA_HTTP_URL、認証はKOTODAMA_HTTP_TOKENを使います。全Toolを同じ方法で呼び出せます。DBを直接操作しません。
+CLIは稼働中HTTPサービスへ接続する`Kotodama call <tool> <arguments.json>`です。引数ファイルはMCPと同じJSONオブジェクトです。接続先と認証は`C:\Kotodama\config\kotodama.json`から読み込みます。全Toolを同じ方法で呼び出せます。DBを直接操作しません。

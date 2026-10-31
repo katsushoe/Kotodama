@@ -54,24 +54,13 @@ Claim status transitions are `active -> retracted` by explicit retraction and `a
 
 ## Run
 
+For the current development checkout, prepare the canonical settings file as described in [Source distribution](#source-distribution) before starting this foreground HTTP host.
+
 ```powershell
-$env:KOTODAMA_DB = "C:\data\kotodama.db"
 dotnet run --project src/Kotodama
 ```
 
-When `KOTODAMA_DB` is omitted, an installed copy creates `kotodama.db` in its `data` directory. Other layouts create it next to the executable. The server listens on `http://127.0.0.1:39280` by default; logs are written to stderr and the daily log directory. The stdio transport was removed in 0.18.0, and `KOTODAMA_TRANSPORT=stdio` is rejected at startup.
-
-`KOTODAMA_DREAM_TEMP_STORE` selects the dream staging location: `Default`, `Memory`, or `File`. Dream calculates eligible Claim states in a connection-local temporary table, then publishes stale transitions atomically in a short transaction.
-
-To choose the loopback URL and require Bearer authentication:
-
-```powershell
-$env:KOTODAMA_HTTP_URL = "http://127.0.0.1:39280"
-$env:KOTODAMA_HTTP_TOKEN = "a sufficiently long random token"
-dotnet run --project src/Kotodama
-```
-
-Connect the MCP client to `http://127.0.0.1:39280/mcp`. When `KOTODAMA_HTTP_TOKEN` is set, the client must send the same value as a Bearer token. HTTP mode remains restricted to loopback and does not provide per-user authorization. See [configuration](CONFIG.ja.md).
+Kotodama reads all application settings from `C:\Kotodama\config\kotodama.json`; it does not use environment variables or discover another settings file. The server listens on `http://127.0.0.1:39280` by default. The stdio transport was removed in 0.18.0. Dream staging can use `Default`, `Memory`, or `File`. Connect MCP clients to `http://127.0.0.1:39280/mcp`. HTTP remains restricted to loopback. See [configuration](CONFIG.ja.md).
 
 ## MCP tools
 
@@ -87,9 +76,26 @@ The storage model preserves conflicting positive and negative claims, distinguis
 
 ## Installation
 
-### MSI installer
+### Current development MSI (user tray)
 
-Download [Kotodama-0.20.0-x64.msi](https://github.com/katsushoe/Kotodama/releases/download/v0.20.0/Kotodama-0.20.0-x64.msi), verify its SHA-256, and run it with administrator privileges:
+The current source builds a user-scoped tray application. These instructions do not provide a public download link for that development package. Build `Kotodama-0.21.0-user-x64.msi` using [the development guide (Japanese)](DEVELOPMENT.ja.md#msi生成) or [the installer build guide](installer/README.md).
+
+The package installs under `C:\Kotodama`: `bin` holds executables, `config` the canonical settings file, `data` the SQLite database, and `logs` daily logs. Complete the initial folder permission setup and legacy service removal in [the installation guide (Japanese)](INSTALLATION.ja.md) first; that initial preparation requires administrator privileges.
+
+After preparation, install or update from a non-elevated PowerShell:
+
+```powershell
+msiexec.exe /i "Kotodama-0.21.0-user-x64.msi" /norestart
+& C:\Kotodama\bin\Kotodama.Tray.exe
+```
+
+The per-user MSI registers `Kotodama.Tray.exe` in HKCU Run and the user PATH. The tray runs the HTTP server after logon and provides status, configuration, logs, restart, and exit. Exit the tray before updating and start it afterward. It does not run before sign-in or after sign-out. The MSI provisions `C:\Kotodama\config\kotodama.json` only when absent; upgrades and uninstall preserve that file and non-empty data directories.
+
+### Published legacy MSI (0.20.0, Windows service)
+
+The following download is the older Windows service package; it does not contain the current development tray application:
+
+[Kotodama-0.20.0-x64.msi](https://github.com/katsushoe/Kotodama/releases/download/v0.20.0/Kotodama-0.20.0-x64.msi)
 
 ```powershell
 Get-FileHash .\Kotodama-0.20.0-x64.msi -Algorithm SHA256
@@ -97,18 +103,9 @@ Start-Process msiexec.exe -Verb RunAs -Wait `
   -ArgumentList '/i "Kotodama-0.20.0-x64.msi" /norestart'
 ```
 
-The x64 MSI installs Kotodama under `C:\Kotodama`:
+This legacy MSI installs under `C:\Kotodama` and uses administrator privileges for its machine installation and Windows service. Use the migration guide above when moving to the development tray package; do not install both packages together.
 
-- `bin`: executable and runtime files
-- `config`: local configuration
-- `data`: SQLite databases and application data
-- `logs`: logs
-
-The MSI registers and starts the automatic Windows service `Kotodama` (display name `Kotodama MCP Server`) under `NT AUTHORITY\LocalService`. It listens on `http://127.0.0.1:39280/mcp` before logon, keeps running after sign-out, and is restarted by the Service Control Manager after a failure. Upgrading from 0.18.1 or earlier removes the former `Kotodama MCP Server` logon scheduled task.
-
-Configuration, databases, and logs are not included in the MSI. Non-empty data directories remain when upgrading or uninstalling. Set `KOTODAMA_DB` when the database should be stored outside the executable directory.
-
-### Portable ZIP
+### Published legacy ZIP (0.20.0)
 
 Download [Kotodama-0.20.0-win-x64.zip](https://github.com/katsushoe/Kotodama/releases/download/v0.20.0/Kotodama-0.20.0-win-x64.zip), verify its SHA-256, and extract it to a writable directory:
 
@@ -118,6 +115,8 @@ Expand-Archive .\Kotodama-0.20.0-win-x64.zip -DestinationPath C:\Tools\Kotodama
 & C:\Tools\Kotodama\Kotodama.exe
 ```
 
+This is the legacy 0.20.0 ZIP. To build a ZIP containing the current development tray application, use [the development guide (Japanese)](DEVELOPMENT.ja.md#portable-zip生成).
+
 The ZIP is self-contained and does not require a separately installed .NET Runtime. It does not register Kotodama with Windows, modify `PATH`, or provide automatic upgrades. Preserve the extracted `data` directory when replacing a version.
 
 ### Claude Desktop Extension (discontinued)
@@ -126,17 +125,16 @@ The Claude Desktop Extension (DXT) was discontinued in 0.18.0 together with the 
 
 ### Source distribution
 
-Install the .NET 10 SDK, then clone and build the source:
+On Windows x64, install the .NET 10 SDK with Windows Desktop references and prepare the writable folders using [the installation guide (Japanese)](INSTALLATION.ja.md#保存先と初回準備). Then build the current development branch:
 
 ```powershell
-git clone https://github.com/katsushoe/Kotodama.git
+git clone --branch develop https://github.com/katsushoe/Kotodama.git
 Set-Location Kotodama
-git checkout v0.11.5
 dotnet restore Kotodama.slnx
 dotnet build Kotodama.slnx -c Release --no-restore
-$env:KOTODAMA_DB = (Join-Path $PWD 'data\kotodama.db')
-New-Item -ItemType Directory -Force data | Out-Null
-dotnet run --project src\Kotodama -c Release --no-build
+New-Item -ItemType Directory -Force C:\Kotodama\config | Out-Null
+if (-not (Test-Path C:\Kotodama\config\kotodama.json)) { Copy-Item installer\kotodama.json C:\Kotodama\config\kotodama.json }
+dotnet run --project src\Kotodama.Tray -c Release --no-build
 ```
 
-A direct launch starts the Streamable HTTP server on `http://127.0.0.1:39280`. Do not run it at the same time as the MSI service, which uses the same port.
+This starts the development tray application and its HTTP host. To run only the foreground HTTP host, use `dotnet run --project src/Kotodama -c Release --no-build`. Only one tray or foreground host may use the configured endpoint at a time. Both read the canonical settings file; a source launch does not register login startup or AI clients.
