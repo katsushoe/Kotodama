@@ -5,14 +5,16 @@
 | 文書 | 内容 |
 |---|---|
 | [README.ja.md](README.ja.md) | 製品概要、起動方法、現在の制約 |
-| [CONFIG.ja.md](CONFIG.ja.md) | 環境変数、既定値、パス解決 |
-| [MCP_TOOLS.ja.md](MCP_TOOLS.ja.md) | 30個のMCP Tool、入力、出力、エラー |
+| [CONFIG.ja.md](CONFIG.ja.md) | 唯一の設定ファイル、既定値、パス解決 |
+| [MCP_TOOLS.ja.md](MCP_TOOLS.ja.md) | 33個のMCP Tool、入力、出力、エラー |
 | [KNOWLEDGE_TAGS.ja.md](KNOWLEDGE_TAGS.ja.md) | 知識タグの設計、正規化、保存・検索・管理API、移行、CLI |
 | [STRUCTURED_KNOWLEDGE.ja.md](STRUCTURED_KNOWLEDGE.ja.md) | 構造化保存、類似・同値・グループの外部契約 |
 | [STRUCTURED_KNOWLEDGE_DESIGN.ja.md](STRUCTURED_KNOWLEDGE_DESIGN.ja.md) | 構造化拡張で正式採用した9項目の設計判断 |
 | [KNOWLEDGE_MODEL.ja.md](KNOWLEDGE_MODEL.ja.md) | Entity、Relation、Claim、Source、Event、状態遷移 |
 | [DREAM.ja.md](DREAM.ja.md) | dreamの対象判定、一時テーブル、並行性、障害時動作 |
 | [OPERATIONS.ja.md](OPERATIONS.ja.md) | 日常運用、バックアップ、復旧、障害調査 |
+| [ADR-0001-mcp-tool-usage-log.ja.md](docs/decisions/ADR-0001-mcp-tool-usage-log.ja.md) | MCP Tool利用ログの保存項目、計測境界、プライバシー、保持方針 |
+| [ADR-0002-user-tray.ja.md](docs/decisions/ADR-0002-user-tray.ja.md) | ユーザー権限のトレイ常駐、初回移行、保存先権限 |
 | [INSTALLATION.ja.md](INSTALLATION.ja.md) | MSIのInstall、Upgrade、Uninstall、配置 |
 | [DEVELOPMENT.ja.md](DEVELOPMENT.ja.md) | ビルド、テスト、MSI生成、リリース検証 |
 

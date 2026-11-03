@@ -1,71 +1,56 @@
 # Windowsインストール
 
-## 要件
+Windows x64向けの自己完結型MSIを使用します。.NET Runtimeの別途導入は不要です。
+[ADR-0002](docs/decisions/ADR-0002-user-tray.ja.md) に従い、通常ユーザー権限のトレイ常駐へ移行しました。
 
-- Windows x64
-- 管理者権限
-- 配布物: `Kotodama-0.20.0-x64.msi`
+## 保存先と初回準備
 
-MSIは自己完結型の.NET実行環境を含むため、利用端末へ別途.NET Runtimeを入れる必要はありません。
+- `C:\Kotodama\bin`: プログラム
+- `C:\Kotodama\config\kotodama.json`: 唯一の設定ファイル
+- `C:\Kotodama\data`: SQLite DB
+- `C:\Kotodama\logs`: 日別ログ
 
-## 配置
-
-```text
-C:\Kotodama\
-├─ bin\       実行ファイルとRuntime
-├─ config\    利用者設定用（自動読込なし）
-├─ data\      SQLite DBとアプリデータ
-└─ logs\      ログ保存用（自動保存なし）
-```
-
-## Install
+初回だけ管理者が `installer/Initialize-UserInstall.ps1` を実行し、利用者のSIDへ
+これらの保存先の変更権限を付与します。管理者とSYSTEMの権限は保持します。
+旧Windowsサービス版がある場合はDBをバックアップし、`-RemoveMachineInstall` を指定して旧MSIを削除します。
+SIDは通常ユーザーのPowerShellで `[Security.Principal.WindowsIdentity]::GetCurrent().User.Value` から取得します。
 
 ```powershell
-Start-Process msiexec.exe -Verb RunAs -Wait -ArgumentList '/i "Kotodama-0.20.0-x64.msi" /norestart'
+# 管理者のPowerShellで実行（SIDとバックアップ先は利用環境の値を指定）
+.\installer\Initialize-UserInstall.ps1 -UserSid '<利用者SID>' -BackupDirectory '<バックアップ先>' -RemoveMachineInstall
 ```
 
-無人Installでは`/qn`を追加します。完了後、Windowsのインストール済みアプリに`Kotodama 0.20.0`が表示されること、`C:\Kotodama\bin\Kotodama.exe`のFile Versionが`0.20.0.0`であること、新しいターミナルで`kotodama`が解決できることを確認します。MSIは`C:\Kotodama\bin`をシステムPATHへ登録し、Windowsサービス`Kotodama`を自動起動・`NT AUTHORITY\LocalService`実行で登録して開始します。インストールしたユーザーには、Codex、インストール済みの場合はClaude Codeの`kotodama` MCP設定とHooksを登録します。Codexには`%USERPROFILE%\.codex\agents\kotodama-curator.toml`も登録します。Codexは初回Hook実行時に信頼確認を表示する場合があります。
+旧サービス版と新しいユーザー単位MSIを同時に導入しないでください。
+固定保存先を使用するため、利用者はPC内の1ユーザーを想定します。
 
-Codexプラグインの配布元はソースツリーの`plugins\kotodama`です。プラグインはKotodama HTTPサーバーの`http://127.0.0.1:39280/mcp`へ接続するため、MSIまたは`kotodama configure codex`による常駐設定を先に完了してください。導入後は新しいCodex Taskで`kotodama-knowledge` SkillとKotodama MCP Toolが利用可能であることを確認します。
+## Install / Upgrade
 
-サービスは`http://127.0.0.1:39280/mcp`で待ち受け、ログオン前から起動し、サインアウト後も継続します。異常終了時は自動で再起動します。CodexまたはClaude Codeを再起動するとStreamable HTTP Toolが利用可能になります。アンインストール時はサービスを停止・削除し、両クライアントの設定を削除します。
+次を通常ユーザーのPowerShellで実行します。管理者として起動しません。
 
-サービスの実行アカウント`LocalService`は、`C:\Kotodama\data`と`C:\Kotodama\logs`への書き込み権限を必要とします。既定の配置では`C:\`から継承される`Authenticated Users`の変更権限で書き込めます。ACLを制限している環境では、両ディレクトリへ`NT AUTHORITY\LOCAL SERVICE`の変更権限を付与してください。
+```powershell
+msiexec.exe /i "Kotodama-0.21.0-user-x64.msi" /norestart
+```
 
-## Upgrade
+MSIはユーザーのPATH、HKCU Runのログイン時起動、Codexおよび導入済みClaude Codeの接続設定とHooksを登録します。
+初回のログインを待たず起動する場合は `C:\Kotodama\bin\Kotodama.Tray.exe` を通常権限で実行します。
+Codex用プラグインの配布元は `plugins\kotodama` です。
+設定の読込元は `C:\Kotodama\config\kotodama.json` だけで、環境変数やユーザープロファイル側の設定は読みません。
 
-新しいMSIを同じコマンドでInstallします。UpgradeCodeは固定され、Major Upgradeとして旧版を置換します。既存の非空データディレクトリは保持します。Upgrade前にDBをバックアップしてください。
+トレイから状態確認、設定とログの表示、再起動、終了を操作します。再起動時に設定を読み直します。
+ログイン前・ログアウト後は稼働しません。HTTP接続先は設定の `httpUrl` に `/mcp` を付けたURLです。
+既定値は `http://127.0.0.1:39280/mcp` です。
+CLIの業務操作は `Kotodama.exe call` から稼働中のHTTPサーバーへ接続します。
 
-更新時はサービスを停止し、MSIのインストール先に一致するKotodamaプロセスも停止します。0.18.1以前から更新した場合は、旧版がログオン時起動に使っていた`Kotodama MCP Server` Scheduled Taskを停止・削除します。別ディレクトリのportable版を同名だけで停止しません。portable版の更新は個別に行います。
+更新前にDBをバックアップし、新しいMSIを同じ通常権限のコマンドで導入します。
+トレイを終了してから更新し、終了後に再度起動してください。
+既存設定と非空のDBディレクトリは保持されます。
 
 ## Uninstall
 
-Windowsのインストール済みアプリ、または登録されたProductCodeを使用してUninstallします。
+Windowsのインストール済みアプリ、または通常権限の `msiexec.exe /x {PRODUCT-CODE}` で削除します。
+トレイ起動登録とクライアント設定を解除し、プログラムを削除します。設定ファイルと非空のDBディレクトリは保持します。
 
-```powershell
-Start-Process msiexec.exe -Verb RunAs -Wait -ArgumentList '/x {PRODUCT-CODE} /norestart'
-```
+## ソースからのビルド
 
-MSIはアプリ本体を削除します。利用者DB等が残っている非空ディレクトリは保持されます。完全削除はバックアップ後に利用者が明示的に行ってください。
-
-## Hash確認
-
-```powershell
-Get-FileHash .\Kotodama-0.20.0-x64.msi -Algorithm SHA256
-```
-
-配布元が提示したSHA-256と一致する場合だけInstallしてください。
-
-## Portable ZIP
-
-任意の書き込み可能な場所へ展開し、展開先の`Kotodama.exe`を起動してください。KotodamaはStreamable HTTPサーバーとして`http://127.0.0.1:39280`で待ち受けるため、MCPクライアントは`http://127.0.0.1:39280/mcp`へ接続します。MSI版と同じポートを使うため、同じ端末でMSI版と同時に起動しないでください。自己完結型のため.NET Runtimeは不要です。
-
-ZIPはWindowsへ製品登録せず、Upgrade／Uninstall機能もありません。更新時はKotodamaを停止し、DBをバックアップしてから、実行ファイル一式を新しい配布物で置き換えてください。
-
-## Claude Desktop Extension（廃止）
-
-Kotodama 0.18.0でstdio MCPサーバーを廃止したため、Claude Desktop Extension（DXT）の配布を終了しました。DXTは同梱の実行ファイルを別プロセスとして起動するため、MSI版と同じDBを旧版で開くと移行済みスキーマを変更するおそれがあります。導入済みの場合は、Claude Desktopの`Settings > Extensions`でKotodama拡張を無効化または削除してください。削除してもデータディレクトリは自動削除されません。Claude Codeからは常駐HTTPサーバーへ接続します。
-
-## ソース配布
-
-ソースから使用する場合は.NET 10 SDKが必要です。Release Tagをcheckoutし、`dotnet restore`、`dotnet build -c Release`、`dotnet run`の順で実行します。DBパスは`KOTODAMA_DB`で明示することを推奨します。詳細なコマンドは[README.ja.md](README.ja.md)を参照してください。
+.NET 10 SDKとWindows Desktopの参照が必要です。[installer/README.md](installer/README.md) の手順を使用します。
+コンソールでHTTPホストを起動する場合は `Kotodama.exe --http` を使用します。

@@ -1,6 +1,6 @@
 # MCP Tool仕様
 
-KotodamaはStreamable HTTP Transport（`http://127.0.0.1:39280/mcp`）で32個のToolを提供します。プロパティ名はJSONではcamelCaseを使用します。
+KotodamaはStreamable HTTP Transport（`http://127.0.0.1:39280/mcp`）で33個のToolを提供します。プロパティ名はJSONではcamelCaseを使用します。
 
 知識タグの8個のTool、`remember_knowledge.input.tags`、エラー、移行、サービス接続CLIの契約は[知識タグ仕様](KNOWLEDGE_TAGS.ja.md)を参照してください。
 
@@ -10,6 +10,7 @@ KotodamaはStreamable HTTP Transport（`http://127.0.0.1:39280/mcp`）で32個�
 - `delete_claim`: Claimを物理削除します。取り消せません。
 - `update_relation_type`: RelationTypeの名称、カテゴリ、鮮度規則等を更新します。方向性は変更しません。
 - `delete_relation_type`: 未使用のRelationTypeを物理削除します。使用中は`in_use`を返します。
+- `merge_namespace`: 明示的な統合依頼時だけ使用します。`input.sourceNamespace`のEntity・知識入力・タグを`input.targetNamespace`へ移します。targetに同名・同classのEntityが1件ある場合は、Relation、語彙、Claimの認識主体、Source作成者、Eventの参照を付け替えてsource側を削除します。`dryRun`既定trueで移動・統合件数、`totalAffected`、衝突を返します。実行は`dryRun=false`と`expectedCount`（試算の`totalAffected`）が必須です。衝突（target候補が複数、Event本体どうしの統合、タグ名の重複）がある場合は`applied=false`で何も変更せず、件数が試算と異なる場合は入力エラーで拒否します。全処理を1トランザクションで行い、外部キーとClaim検索投影の整合を検査します。
 
 ## Server InstructionsとPrompt
 

@@ -44,8 +44,8 @@ public sealed class ServerSettingsTests
     }
 
     [Theory]
-    [InlineData("tcp", "http://127.0.0.1:3456", "KOTODAMA_TRANSPORT")]
-    [InlineData("http", "not a url", "KOTODAMA_HTTP_URL")]
+    [InlineData("tcp", "http://127.0.0.1:3456", "Transport")]
+    [InlineData("http", "not a url", "HttpUrl")]
     [InlineData("http", "ftp://127.0.0.1:3456", "HTTP or HTTPS")]
     [InlineData("http", "http://192.0.2.1:3456", "loopback")]
     [InlineData("http", "http://127.0.0.1:3456/path", "scheme, loopback host, and port")]
